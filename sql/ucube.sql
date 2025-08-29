@@ -11,7 +11,7 @@ USE `fbsir`;
 
 -- ----------------------------
 -- Table structure for sys_role_menu
--- ----------------------------
+-- ---------------------------- 
 DROP TABLE IF EXISTS `sys_role_menu`;
 CREATE TABLE `sys_role_menu` (
   `role_id` bigint(20) NOT NULL COMMENT '角色ID',
