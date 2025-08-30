@@ -3,7 +3,7 @@
 # 福帮手FBSir：智能原生时代的微信私域运营助手
 
 
-版本：0.1A
+版本：0.2A
 
 文档更新日期：2025年8月30日
 
@@ -38,6 +38,143 @@ U3W-AI/
 优立方AI主机控制台前端：[点击前往](cube-ui/deployment_guide.md)
 
 优立方AI主机控制台小程序端：[点击前往](cube-mini/deployment_guide.md)
+
+## 快速开始
+
+以下是快速部署和运行福帮手FBSir的步骤。如需详细了解各模块的部署过程，请参考各模块的部署指南。
+
+### 前置要求
+- JDK 17
+- Maven
+- Node.js 16.x/18.x 和 npm 8.x+
+- MySQL 5.7+ 和 Redis 6.0+
+- Windows 10系统及以上（建议内存16GB）
+
+### 环境准备
+1. 安装 JDK 17、Maven、Node.js、MySQL 和 Redis
+2. 克隆项目仓库到本地
+
+## 配置
+
+### 数据库配置
+1. 创建MySQL数据库：
+   ```bash
+   mysql -u root -p
+   CREATE DATABASE IF NOT EXISTS ucube DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   ```
+
+2. 导入SQL文件：
+   ```bash
+   mysql -u root -p ucube < sql/ucube.sql
+   ```
+
+3. 添加主机ID到白名单表：
+   ```bash
+   mysql -u root -p ucube
+   INSERT INTO sys_host_whitelist (host_id) VALUES ('office01');  # 替换为您的主机ID
+   ```
+
+### 后端配置
+1. 修改 cube-admin 模块的数据库配置（application-druid.yml）：
+   ```yaml
+   spring:
+       datasource:
+           druid:
+               master:
+                   url: jdbc:mysql://[数据库IP]:[端口]/ucube?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowMultiQueries=true
+                   username: [数据库用户名]
+                   password: [数据库密码]
+   ```
+
+2. 修改 cube-admin 模块的Redis配置（application.yml）：
+   ```yaml
+   spring:
+       redis:
+           host: [Redis IP]
+           port: [Redis端口]
+           password: [Redis密码]
+   ```
+
+3. 修改应用配置（application.yml）：
+   编辑 `src/main/resources/application.yml` 文件，更新文件上传配置：
+   ```yaml
+   profile: F:/AGI/chatfile #此处可以是电脑上的任意文件夹
+   upload:
+   #上传文件路径
+       url: http://localhost:8081/profile/
+   ```
+   > 注意：端口默认为8081，如已修改请使用实际端口
+
+4. 修改文件上传路径配置：
+   编辑 `../cube-common/src/main/java/com/cube/common/config/RuoYiConfig.java` 文件最底部，更新上传路径：
+   ```java
+    public static String getUploadPath()
+    {
+        return "F:/AGI/chatfile";
+    }
+   ```
+5. 修改日志上传路径配置：
+   编辑 `src/main/resources/logback.xml` 文件最底部，更新上传路径：
+   ```xml
+    <!-- 日志存放路径 -->
+	<property name="log.path" value="/你的日志存放路径" />
+
+6. 配置 cube-engine 模块的主机ID和数据目录`../cube-engine/src/main/resources/application.yaml`文件 **（MCP相关配置见[部署文档](cube-engine/deployment_guide.md)）**：
+   ```yaml
+   cube:
+     url: http://127.0.0.1:8081/aigc
+     wssurl: ws://127.0.0.1:8081/websocket?clientId=play-office01  # 替换为您的主机ID
+     datadir: F:\AGI\user-data-dir  # 数据目录，建议单独文件夹存放
+     uploadurl: http://127.0.0.1:8081/common/upload
+   ```
+
+## 运行
+
+### 启动后端服务
+1. 在项目根目录安装所有依赖：
+   ```bash
+   mvn clean install
+   ```
+
+2. 打包启动 cube-admin 服务：
+   ```bash
+   cd cube-admin
+   mvn clean package -DskipTests
+   java -jar target/cube-admin.jar
+   ```
+
+3. 打包启动 cube-engine 服务：
+   ```bash
+   cd ../cube-engine
+   mvn clean package -DskipTests
+   java -jar target/U3W.jar
+   ```
+
+### 启动前端服务
+1. 进入 cube-ui 目录：
+   ```bash
+   cd ../cube-ui
+   ```
+
+2. 安装前端依赖：
+   ```bash
+   npm install --legacy-peer-deps
+   ```
+
+3. 启动前端开发服务器：
+   ```bash
+   npm run dev
+   ```
+
+### 首次登录
+- 启动成功后，浏览器会自动打开后台页面
+- 账密登录入口为loginpwd
+- 账号：admin
+- 密码：admin123
+
+### 主机绑定
+- 登录后台后，点击右上角名称→个人中心
+- 在基本资料的主机ID输入框中填写 `wssurl` 配置项的 `<主机ID>` 部分
 
 
 <a href="#u3w-优立方-ai-主机人机协同数智驱动的团队未来">返回顶部 ↑</a>
