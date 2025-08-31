@@ -13,19 +13,19 @@
 ## 第一阶段：基础服务部署
 
 ### 1. 获取主机ID并配置
-在开始部署前，您需要联系管理员获取唯一的主机ID。主机ID将用于区分不同的服务实例，确保系统正常运行。
+在开始部署前，您需要填写自己的主机ID。主机ID将用于区分不同的服务实例，确保系统正常运行。
 
 - 克隆仓库到本地后，打开 `src/main/resources/application.yaml` 文件
 - 修改`datadir`地址，此为数据目录，建议单独文件夹存放。例：`datadir: D:\AGI\user-data-dir`
-- 将管理员分配的主机ID填入配置中：
+- 将主机ID填入配置中：
   ```yaml
   cube:
     url: http://127.0.0.1:8081/aigc
-    wssurl: ws://127.0.0.1:8081/websocket?clientId=play-office01  #主机ID建议使用字母+数字组合，例如play-user01，并在数据库sys_host_whitelist中配置主机id
+    wssurl: ws://127.0.0.1:8081/websocket?clientId=play-你的主机ID  #主机ID建议使用字母+数字组合，例如play-user01，并在数据库sys_host_whitelist中配置主机id
     datadir: //文件夹路径
     uploadurl: http://127.0.0.1:8081/common/upload
   ```
-  **注意：** `play-`前缀固定，后续部分使用管理员分配的主机ID
+  **注意：** `play-`前缀固定，后续部分使用你的主机ID
 
 ### 2. 构建与启动
 - 进入项目目录：   

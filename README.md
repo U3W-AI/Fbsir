@@ -3,7 +3,7 @@
 # 福帮手FBSir：智能原生时代的微信私域运营助手
 
 
-版本：0.11A
+版本：0.12A
 
 文档更新日期：2025年8月31日
 
@@ -74,7 +74,7 @@ U3W-AI/
 3. 添加主机ID到白名单表：
    ```bash
    mysql -u root -p ucube
-   INSERT INTO sys_host_whitelist (host_id) VALUES ('office01');  # 替换为您的主机ID
+   INSERT INTO sys_host_whitelist (host_id) VALUES ('你的主机ID');  #主机ID建议使用字母+数字组合，例如user01
    ```
 
 ### 后端配置
@@ -126,7 +126,7 @@ U3W-AI/
    ```yaml
    cube:
      url: http://127.0.0.1:8081/aigc
-     wssurl: ws://127.0.0.1:8081/websocket?clientId=play-office01  # 替换为您的主机ID
+     wssurl: ws://127.0.0.1:8081/websocket?clientId=play-您的主机ID  #主机ID建议使用字母+数字组合，例如user01，并在数据库sys_host_whitelist中配置主机id
      datadir: F:\AGI\user-data-dir  # 数据目录，建议单独文件夹存放
      uploadurl: http://127.0.0.1:8081/common/upload
    ```
