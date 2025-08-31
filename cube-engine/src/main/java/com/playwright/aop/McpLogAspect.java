@@ -79,12 +79,15 @@ public class McpLogAspect {
         }
         try {
 //            获取微信用户认证
-            if(userInfoRequest != null && userInfoRequest.getUnionId() != null) {
-                WxMpService wxMpService = wechatMpConfig.getWxMpService(userInfoRequest.getUnionId());
-                if(wxMpService == null) {
-                    String s = wechatMpConfig.setWxMpService(userInfoRequest.getUnionId());
-                    if(s.contains("false")) {
-                        throw new RuntimeException(WxExceptionConstants.WX_AUTH_EXCEPTION);
+//            TODO 添加其他AI需要在这里添加判断，暂时处理逻辑，后续会有优化
+            if (!(description.contains("腾讯元宝DS") || description.contains("腾讯元宝T1") || description.contains("豆包AI"))) {
+                if(userInfoRequest != null && userInfoRequest.getUnionId() != null) {
+                    WxMpService wxMpService = wechatMpConfig.getWxMpService(userInfoRequest.getUnionId());
+                    if(wxMpService == null) {
+                        String s = wechatMpConfig.setWxMpService(userInfoRequest.getUnionId());
+                        if(s.contains("false")) {
+                            throw new RuntimeException(WxExceptionConstants.WX_AUTH_EXCEPTION);
+                        }
                     }
                 }
             }
