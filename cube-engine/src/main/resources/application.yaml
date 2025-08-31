@@ -8,6 +8,8 @@ cube:
   uploadurl: http://127.0.0.1:8081/common/upload
 
 spring:
+  main:
+    allow-circular-references: true
   ai:
     mcp:
       server:

@@ -1,5 +1,7 @@
 package com.playwright.aop;
 
+import com.playwright.config.WechatMpConfig;
+import com.playwright.constants.WxExceptionConstants;
 import com.playwright.entity.LogInfo;
 import com.playwright.entity.UserInfoRequest;
 import com.playwright.entity.mcp.McpResult;
@@ -7,24 +9,18 @@ import com.playwright.utils.LogMsgUtil;
 import com.playwright.utils.RestUtils;
 import com.playwright.utils.UserInfoUtil;
 import com.playwright.utils.UserLogUtil;
-import io.swagger.v3.oas.annotations.Operation;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.aspectj.lang.JoinPoint;
+import me.chanjar.weixin.mp.api.WxMpService;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.Signature;
 import org.aspectj.lang.annotation.*;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
-import java.time.LocalDateTime;
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * dateStart 2024/8/4 9:34
@@ -39,16 +35,18 @@ public class McpLogAspect {
     private String url;
     private final LogMsgUtil logMsgUtil;
     private final UserInfoUtil userInfoUtil;
+    private final WechatMpConfig wechatMpConfig;
     @Pointcut("execution(* com.playwright.mcp.*.*(..))")
     public void logPointCut() {
     }
 
-//    @Around("logPointCut()")
+    @Around("logPointCut()")
     public Object logAround(ProceedingJoinPoint joinPoint) throws Throwable {
         long start = 0;
         LogInfo logInfo = new LogInfo();
         logInfo.setUserId("");
         String description = "无";
+        UserInfoRequest userInfoRequest = null;
         try {
             start = System.currentTimeMillis();
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
@@ -68,7 +66,8 @@ public class McpLogAspect {
             Object[] args = joinPoint.getArgs();
             if (args.length > 0) {
                 Object arg = args[0];
-                if (arg instanceof UserInfoRequest userInfoRequest) {
+                if (arg instanceof UserInfoRequest) {
+                    userInfoRequest = (UserInfoRequest) arg;
                     String unionId = userInfoRequest.getUnionId();
                     String userId = userInfoUtil.getUserIdByUnionId(unionId);
                     logInfo.setUserId(userId);
@@ -78,20 +77,34 @@ public class McpLogAspect {
         } catch (Exception e) {
             UserLogUtil.sendExceptionLog("无", "aop异常", "logAround", e, url + "/saveLogInfo");
         }
+        try {
+//            获取微信用户认证
+            if(userInfoRequest != null && userInfoRequest.getUnionId() != null) {
+                WxMpService wxMpService = wechatMpConfig.getWxMpService(userInfoRequest.getUnionId());
+                if(wxMpService == null) {
+                    String s = wechatMpConfig.setWxMpService(userInfoRequest.getUnionId());
+                    if(s.contains("false")) {
+                        throw new RuntimeException(WxExceptionConstants.WX_AUTH_EXCEPTION);
+                    }
+                }
+            }
 //        执行方法，无异常情况
-        Object result = joinPoint.proceed();
-        long end = System.currentTimeMillis();
-        McpResult mcpResult = null;
-        if(result instanceof McpResult) {
-            mcpResult = (McpResult) result;
+            Object result = joinPoint.proceed();
+            long end = System.currentTimeMillis();
+            McpResult mcpResult = null;
+            if(result instanceof McpResult) {
+                mcpResult = (McpResult) result;
+            }
+            if(mcpResult == null) {
+                return McpResult.fail("aop返回异常", "");
+            }
+            logInfo.setExecutionTimeMillis(end - start);
+            logInfo.setExecutionResult(mcpResult.getResult() + mcpResult.getShareUrl());
+            logInfo.setIsSuccess(mcpResult.getCode() == 200 ? 1 : 0);
+            RestUtils.post(url + "/saveLogInfo", logInfo);
+            return result;
+        } catch (Throwable e) {
+            return McpResult.fail(e.getMessage(), "");
         }
-        if(mcpResult == null) {
-            return McpResult.fail("aop返回异常", "");
-        }
-        logInfo.setExecutionTimeMillis(end - start);
-        logInfo.setExecutionResult(mcpResult.getResult());
-        logInfo.setIsSuccess(mcpResult.getCode() == 200 ? 1 : 0);
-        RestUtils.post(url + "/saveLogInfo", logInfo);
-        return result;
     }
 }

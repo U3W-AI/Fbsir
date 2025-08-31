@@ -139,6 +139,10 @@ public class DouBaoUtil {
 
             // 进入循环，直到内容不再变化或者超时
             while (true) {
+                Locator changeTypeLocator = page.locator("text=改用对话直接回答");
+                if(changeTypeLocator.isVisible()) {
+                    changeTypeLocator.click();
+                }
                 // 获取当前时间戳
                 long elapsedTime = System.currentTimeMillis() - startTime;
 

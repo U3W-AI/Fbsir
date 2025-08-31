@@ -11,6 +11,7 @@ import com.playwright.websocket.WebSocketClientService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,11 +20,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 
 
 @RestController
 @RequestMapping("/api/browser")
 @Tag(name = "AI登录登录控制器", description = "AI登录相关接口")
+@Slf4j
 public class BrowserController {
 
     // 浏览器操作工具类
@@ -46,6 +49,9 @@ public class BrowserController {
     @Autowired
     private BaiduUtil baiduUtil;
 
+    public static final ConcurrentHashMap<String, String> loginMap = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Integer> lockMap = new ConcurrentHashMap<>();
+
     /**
      * 检查元宝主站登录状态
      * @param userId 用户唯一标识
@@ -55,20 +61,48 @@ public class BrowserController {
     @GetMapping("/checkLogin")
     public String checkYBLogin(@Parameter(description = "用户唯一标识")  @RequestParam("userId") String userId) throws InterruptedException {
         try {
-            UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
-            BrowserContext browserContext = browserContextInfo.getBrowserContext();
-            Page page = browserContext.pages().get(0);
-            page.navigate("https://yuanbao.tencent.com/chat/naQivTmsDa/");
-            page.waitForLoadState(LoadState.LOAD);
-            Thread.sleep(3000);
-            Locator phone = page.locator("//p[@class='nick-info-name']");
-            if (phone.count() > 0) {
-                String phoneText = phone.textContent();
-                if (phoneText.equals("未登录")) {
+//            加锁，同一个用户只能有一个检查
+            if((loginMap.get(userId) == null || loginMap.get(userId).contains("未登录")) && lockMap.get(userId) == null) {
+                loginMap.remove(userId);
+                lockMap.put(userId, 1);
+                UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
+                BrowserContext browserContext = browserContextInfo.getBrowserContext();
+                Page page = browserContext.pages().get(0);
+                page.navigate("https://yuanbao.tencent.com/chat/naQivTmsDa/");
+                page.waitForLoadState(LoadState.LOAD);
+                Thread.sleep(3000);
+                Locator phone = page.locator("//p[@class='nick-info-name']");
+                if (phone.count() > 0) {
+                    String phoneText = phone.textContent();
+                    if (phoneText.equals("未登录")) {
+                        loginMap.put(userId, "未登录");
+                        lockMap.remove(userId);
+                        return "false";
+                    }
+                    loginMap.put(userId, phoneText);
+                    lockMap.remove(userId);
+                    return phoneText;
+                } else {
+                    loginMap.put(userId, "未登录");
+                    lockMap.remove(userId);
                     return "false";
                 }
-                return phoneText;
             } else {
+                log.info("已有其他线程检测,等待登录状态变化");
+                // 等待其他线程检测登录状态
+                for(int i = 0; i < 10; i++) {
+                    if(loginMap.get(userId) != null) {
+                        if(loginMap.get(userId).contains("未登录")) {
+                            log.info("检测到未登录");
+                            return "false";
+                        } else {
+                            log.info("检测到已登录");
+                            return loginMap.get(userId);
+                        }
+                    }
+                    Thread.sleep(3000);
+                }
+                log.info("检测超时");
                 return "false";
             }
         } catch (Exception e) {
