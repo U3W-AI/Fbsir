@@ -60,6 +60,11 @@ public class UserInfoRequest {
     @ToolParam(description = "消息类型", required = false)
     private String type;
 
+    @ToolParam(description = "图片链接", required = false)
+    private String imageUrl;
+    @ToolParam(description = "图片描述", required = false)
+    private String imageDescription;
+
     @ToolParam(description = "分享链接", required = false)
     private String shareUrl;
 
