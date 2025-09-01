@@ -1,7 +1,7 @@
 <p align="center"><img alt="Static Badge" src="https://img.shields.io/badge/MySQL-5.7-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/JDK-17-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/Spring%20Boot-3.2.5-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/Redis-6.0%2B-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/License-AGPL3.0-blue"></p>
 
 # 福帮手FBSir：智能原生时代的微信私域运营助手
-
+![输入图片说明](docs-img/%E5%AF%B9%E8%AF%9D%E9%9A%90%E5%BD%A2%E5%86%A0%E5%86%9B.jpeg)
 
 版本：0.12A
 
