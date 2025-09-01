@@ -17,6 +17,7 @@ import me.chanjar.weixin.mp.bean.draft.WxMpDraftInfo;
 import me.chanjar.weixin.mp.bean.material.WxMpMaterial;
 import me.chanjar.weixin.mp.bean.material.WxMpMaterialFileBatchGetResult;
 import me.chanjar.weixin.mp.bean.material.WxMpMaterialUploadResult;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -37,7 +38,8 @@ import java.util.List;
 public class WeChatUtils {
     private final UserInfoUtil userInfoUtil;
     private final UserInfoService userInfoService;
-    private final WechatMpConfig wechatMpConfig;
+    @Autowired
+    private  WechatMpConfig wechatMpConfig;
     @Value("${ruoyi.profile}")
     private String tmpUrl;
 
