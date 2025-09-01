@@ -542,6 +542,7 @@ public class UserInfoServiceImpl implements UserInfoService {
         return ResultBody.success(num);
     }
 
-    public static void main(String[] args) {
-    }
+
+
+
 }
