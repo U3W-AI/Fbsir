@@ -41,7 +41,7 @@ public class WechatMpServiceImpl implements WechatMpService {
             String title = map.get("title").toString();
             String contentText = map.get("contentText").toString();
             String shareUrl = map.get("shareUrl").toString();
-            String thumbMediaId = map.get("thumbMediaId").toString();
+            Object thumbMediaId = map.get("thumbMediaId");
             String userId = userInfoMapper.getUserIdByUnionId(unionId);
             WcOfficeAccount wo = weChatUtils.getOfficeAccountByUserId(userId);
             if(unionId == null || title == null || contentText == null || shareUrl == null) {
@@ -57,7 +57,7 @@ public class WechatMpServiceImpl implements WechatMpService {
             if(thumbMediaId == null) {
                 draft.setThumbMediaId(wo.getMediaId());
             } else {
-                draft.setThumbMediaId(thumbMediaId); // 直接使用已有封面图media_id
+                draft.setThumbMediaId(thumbMediaId.toString()); // 直接使用已有封面图media_id
             }
             draft.setShowCoverPic(1); // 显示封面
             draft.setContentSourceUrl(shareUrl); // 添加文章来源链接
