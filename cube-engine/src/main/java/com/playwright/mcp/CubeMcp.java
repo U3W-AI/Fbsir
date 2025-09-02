@@ -146,8 +146,10 @@ public class CubeMcp {
                 if(mcpResult.getCode() != 200 || content == null || content.isEmpty()) {
                     return McpResult.fail("获取链接内容失败,请稍后重试", "");
                 }
+                userInfoRequest.setUserPrompt("文本内容: `" + content + "`");
+            } else {
+                userInfoRequest.setUserPrompt("文本内容: `" + prompt + "`");
             }
-            userInfoRequest.setUserPrompt(content);
             // 获取提示词
             String json = HttpUtil.doGet(url.substring(0, url.lastIndexOf("/")) + "/media/getCallWord/wechat_layout", null);
             JSONObject jsonObject = JSONObject.parseObject(json);
@@ -176,7 +178,7 @@ public class CubeMcp {
             if(imgInfoList.isEmpty()) {
                 userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + " " + znpbPrompt);
             } else {
-                userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + ", 图片信息:" + imgInfoList.toString() + " " + znpbPrompt);
+                userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + ", 图片信息: {" + imgInfoList.toString() + "} " + znpbPrompt);
             }
 //            设置为默认AI配置
             userInfoRequest.setRoles("znpb-ds,yb-deepseek-pt,yb-deepseek-sdsk,yb-deepseek-lwss,");
@@ -283,7 +285,7 @@ public class CubeMcp {
             }
             userInfoRequest.setUserId(userId);
             userInfoRequest.setRoles(roles);
-            userInfoRequest.setUserPrompt(imgDescription + "\n根据以上描述信息,生成对应的图片");
+            userInfoRequest.setUserPrompt(imgDescription + "\n根据以上描述信息,生成一张对应的图片");
             return aigcController.startDBImg(userInfoRequest);
         } catch (Exception e) {
             throw e;
