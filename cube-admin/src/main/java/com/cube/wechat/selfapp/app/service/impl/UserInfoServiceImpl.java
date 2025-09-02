@@ -220,6 +220,15 @@ public class UserInfoServiceImpl implements UserInfoService {
     }
 
     @Override
+    public ResultBody getOfficeAccount(Long userId) {
+        WcOfficeAccount woa = userInfoMapper.getOfficeAccountByUserId(userId);
+        if(woa != null) {
+            return ResultBody.success(woa);
+        }
+        return ResultBody.FAIL;
+    }
+
+    @Override
     public ResultBody pushAutoOneOffice(Map map) {
         WcOfficeAccount woa = userInfoMapper.getOfficeAccountByUserName(map.get("userId") + "");
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
