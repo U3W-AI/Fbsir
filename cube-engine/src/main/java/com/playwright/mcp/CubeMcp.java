@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * @author muyou
@@ -124,7 +126,28 @@ public class CubeMcp {
             if (result == null || result.equals("false") || result.equals("未登录")) {
                 return McpResult.fail("您未登录腾讯元宝", "");
             }
-
+            String prompt = userInfoRequest.getUserPrompt();
+//            先检查传递内容是否是链接
+            String regex = "https?://[^\s]+";
+            Pattern pattern = Pattern.compile(regex);
+            Matcher matcher = pattern.matcher(prompt);
+            String promptUrl = null;
+            if (matcher.find()) {
+                promptUrl = matcher.group();
+            }
+            String content = null;
+            if(promptUrl != null) {
+                String getContentPrompt = promptUrl + " 获取以上链接内容";
+//                无需深度思考和联网搜索
+                userInfoRequest.setRoles("yb-deepseek-pt, znpb");
+                userInfoRequest.setUserPrompt(getContentPrompt);
+                McpResult mcpResult = aigcController.startYBOffice(userInfoRequest);
+                content = mcpResult.getResult();
+                if(mcpResult.getCode() != 200 || content == null || content.isEmpty()) {
+                    return McpResult.fail("获取链接内容失败,请稍后重试", "");
+                }
+            }
+            userInfoRequest.setUserPrompt(content);
             // 获取提示词
             String json = HttpUtil.doGet(url.substring(0, url.lastIndexOf("/")) + "/media/getCallWord/wechat_layout", null);
             JSONObject jsonObject = JSONObject.parseObject(json);
@@ -150,7 +173,13 @@ public class CubeMcp {
                     imgInfoList.add(imgInfo);
                 }
             }
-            userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + "图片信息:" + imgInfoList.toString() + znpbPrompt);
+            if(imgInfoList.isEmpty()) {
+                userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + " " + znpbPrompt);
+            } else {
+                userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + ", 图片信息:" + imgInfoList.toString() + " " + znpbPrompt);
+            }
+//            设置为默认AI配置
+            userInfoRequest.setRoles("znpb-ds,yb-deepseek-pt,yb-deepseek-sdsk,yb-deepseek-lwss,");
             McpResult mcpResult = aigcController.startYBOffice(userInfoRequest);
             if (mcpResult == null) {
                 return McpResult.fail("腾讯元宝DS调用失败,请稍后重试", null);

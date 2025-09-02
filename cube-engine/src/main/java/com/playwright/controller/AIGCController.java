@@ -384,7 +384,7 @@ public class AIGCController {
             String roles = userInfoRequest.getRoles();
             String userPrompt = userInfoRequest.getUserPrompt();
             //TODO 如有灵活需求，可在此做修改
-            roles = "znpb-ds,yb-deepseek-pt,yb-deepseek-sdsk,yb-deepseek-lwss,";
+//            roles = "znpb-ds,yb-deepseek-pt,yb-deepseek-sdsk,yb-deepseek-lwss,";
             McpResult mcpResult = new McpResult();
             try {
                 if (roles.contains("znpb-t1")) {
