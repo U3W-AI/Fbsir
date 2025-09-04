@@ -26,7 +26,7 @@ import java.util.UUID;
 public class ScreenshotUtil {
 
     @Value("${cube.uploadurl}")
-    private String uploadUrl;
+    public String uploadUrl;
 
     public String screenshotAndUpload(Page page, String imageName) throws IOException {
 

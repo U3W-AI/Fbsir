@@ -58,6 +58,12 @@ public class CubeMcp {
         return startAi(userInfoRequest, "腾讯元宝DS", "ybDsMcp", "yb-deepseek-pt");
     }
 
+    @Tool(name = "百度AI", description = "通过用户信息调用ai,需要用户unionId,ai配置信息,提示词")
+    public McpResult baiduMcp(@ToolParam(description = "用户调用信息,包括用户unionId,用户提示词,用户选择的ai配置信息")
+                              UserInfoRequest userInfoRequest) {
+        return startAi(userInfoRequest, "百度AI", "baiduMcp", "baidu-agent");
+    }
+
     private McpResult startAi(UserInfoRequest userInfoRequest, String aiName, String methodName, String aiConfig) {
         try {
             userInfoRequest.setTaskId(UUID.randomUUID().toString());
@@ -78,6 +84,9 @@ public class CubeMcp {
             if (aiName.contains("豆包")) {
                 result = browserController.checkDBLogin(userId);
             }
+            if (aiName.contains("百度")) {
+                result = browserController.checkBaiduLogin(userId);
+            }
             //TODO 后续添加其他AI的登录判断
             if (result == null || result.equals("false") || result.equals("未登录")) {
                 return McpResult.fail("您未登录" + aiName, "");
@@ -89,6 +98,9 @@ public class CubeMcp {
                 }
                 if (aiName.contains("豆包")) {
                     mcpResult = aigcController.startDB(userInfoRequest);
+                }
+                if (aiName.contains("百度")) {
+                    mcpResult = aigcController.startBaidu(userInfoRequest);
                 }
                 //TODO 后续添加对其他AI判断执行
 

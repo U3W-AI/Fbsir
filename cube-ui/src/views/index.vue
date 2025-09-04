@@ -432,14 +432,17 @@ export default {
       aiLoginStatus: {
         yuanbao: false,
         doubao: false,
+        baidu: false,
       },
       accounts: {
         yuanbao: "",
         doubao: "",
+        baidu: "",
       },
       isClick: {
         yuanbao: false,
         doubao: false,
+        baidu: false,
       },
       aiLoginDialogVisible: false,
       currentAiType: "",
@@ -451,6 +454,7 @@ export default {
       isLoading: {
         yuanbao: true,
         doubao: true,
+        baidu: true,
       },
       resetStatusTimeout: null, // 状态检查超时定时器
 
@@ -485,6 +489,7 @@ export default {
       const titles = {
         yuanbao: "腾讯元宝登录",
         doubao: "豆包登录",
+        baidu: "百度AI登陆",
       };
       return titles[this.currentAiType] || "登录";
     },
@@ -514,10 +519,10 @@ export default {
         // 初始检测时，AI和媒体按钮分开变灰
         this.isClick.yuanbao = false;
         this.isClick.doubao = false;
-
+        this.isClick.baidu = false,
         this.isLoading.yuanbao = true;
         this.isLoading.doubao = true;
-
+        this.isLoading.baidu = true;
         this.initWebSocket(this.userId); // 创建时建立连接
 
         setTimeout(() => {
@@ -548,6 +553,12 @@ export default {
           // 检查百家号登录状态
           this.sendMessage({
             type: "PLAY_CHECK_BAIJIAHAO_LOGIN",
+            userId: this.userId,
+            corpId: this.corpId,
+          });
+          // 检查百度登录状态
+          this.sendMessage({
+            type: "PLAY_CHECK_BAIDU_LOGIN",
             userId: this.userId,
             corpId: this.corpId,
           });
@@ -679,6 +690,13 @@ export default {
           corpId: this.corpId,
         });
       }
+      if (type == "baidu") {
+        this.sendMessage({
+          type: "PLAY_GET_BAIDU_QRCODE",
+          userId: this.userId,
+          corpId: this.corpId,
+        });
+      }
       this.$message({
         message: "正在获取登录二维码...",
         type: "info",
@@ -688,6 +706,7 @@ export default {
       const icons = {
         yuanbao: require("@/assets/logo/yuanbao.png"),
         doubao: require("@/assets/logo/doubao.png"),
+        baidu: require("@/assets/logo/Baidu.png"),
       };
       return icons[type] || "";
     },
@@ -695,6 +714,7 @@ export default {
       const names = {
         yuanbao: "腾讯元宝",
         doubao: "豆包",
+        baidu: "百度",
       };
       return names[type] || "";
     },
@@ -731,7 +751,8 @@ export default {
 
       if (
         datastr.includes("RETURN_PC_YB_QRURL") ||
-        datastr.includes("RETURN_PC_DB_QRURL")
+        datastr.includes("RETURN_PC_DB_QRURL") ||
+        datastr.includes("RETURN_PC_BAIDU_QRURL")
       ) {
         if (dataObj.url && dataObj.url.trim() !== "") {
           this.qrCodeUrl = dataObj.url;
@@ -752,7 +773,7 @@ export default {
           this.isLoading.yuanbao = false;
           this.isClick.yuanbao = true; // 检测成功后设为true
           // 检查是否所有AI都已恢复，全部恢复则清除超时定时器
-          if (!this.isLoading.yuanbao && !this.isLoading.doubao) {
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.baidu) {
             if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
           }
         } else {
@@ -767,7 +788,7 @@ export default {
           this.isLoading.doubao = false;
           this.isClick.doubao = true; // 检测成功后设为true
           // 检查是否所有AI都已恢复，全部恢复则清除超时定时器
-          if (!this.isLoading.yuanbao && !this.isLoading.doubao) {
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.baidu) {
             if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
           }
         } else {
@@ -775,7 +796,22 @@ export default {
           this.isLoading.doubao = false;
         }
 
-      }
+      } else if (datastr.includes("RETURN_BAIDU_STATUS") && dataObj.status != "") {
+        if (!datastr.includes("false")) {
+          this.aiLoginDialogVisible = false;
+          this.aiLoginStatus.baidu = true;
+          this.accounts.baidu = dataObj.status;
+          this.isLoading.baidu = false;
+          this.isClick.baidu = true; // 检测成功后设为true
+          // 检查是否所有AI都已恢复，全部恢复则清除超时定时器
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.baidu) {
+            if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
+          }
+        } else {
+          this.isClick.baidu = true;
+          this.isLoading.baidu = false;
+        }
+      } 
     },
 
     closeWebSocket() {
@@ -819,7 +855,7 @@ export default {
       // this.isLoading.kimi = true; // 移除Kimi登录状态检测
       // this.isLoading.qw = true;
       this.isLoading.zhzd = true;
-      // this.isLoading.baidu = true; // 移除百度AI相关代码
+      this.isLoading.baidu = true;
       this.isClick.yuanbao = false;
       this.isClick.doubao = false;
       this.isClick.deepseek = false;
@@ -827,7 +863,7 @@ export default {
       this.isClick.metaso = false;
       // this.isClick.qw = false;
       // this.isClick.kimi = false; // 移除Kimi登录状态检测
-      // this.isClick.baidu = false; // 移除百度AI相关代码
+      this.isClick.baidu = false;
       this.isClick.zhzd = false;
       // 清除上一次的超时定时器
       if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
@@ -839,7 +875,7 @@ export default {
         this.isLoading.metaso = false;
         // this.isLoading.qw = false;
 
-        // this.isLoading.baidu = false; // 移除百度AI相关代码
+        this.isLoading.baidu = false;
         this.isLoading.zhzd = false;
         this.isClick.yuanbao = true;
         this.isClick.doubao = true;
@@ -855,7 +891,7 @@ export default {
       this.sendMessage({ type: "PLAY_CHECK_DEEPSEEK_LOGIN", userId: this.userId, corpId: this.corpId });
       this.sendMessage({ type: "PLAY_CHECK_METASO_LOGIN", userId: this.userId, corpId: this.corpId });
       // this.sendMessage({ type: "PLAY_CHECK_QW_LOGIN", userId: this.userId, corpId: this.corpId });
-
+      this.sendMessage({ type: "PLAY_CHECK_BAIDU_LOGIN", userId: this.userId, corpId: this.corpId });
 
     },
     handleRefreshMedia() {
