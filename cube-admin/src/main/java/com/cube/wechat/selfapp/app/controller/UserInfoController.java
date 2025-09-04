@@ -35,9 +35,10 @@ public class UserInfoController extends BaseController {
 
     @Autowired
     private MyWebSocketHandler myWebSocketHandler;
+
     @GetMapping("/getOfficeAccount")
-    public ResultBody getOfficeAccount(String userId){
-        return userInfoService.getOfficeAccountByUserId(userId);
+    public ResultBody getOfficeAccount(){
+        return userInfoService.getOfficeAccount(getUserId());
     }
 
     @GetMapping("/getUserCount")
