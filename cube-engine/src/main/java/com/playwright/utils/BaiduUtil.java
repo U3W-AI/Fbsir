@@ -3,6 +3,7 @@ package com.playwright.utils;
 import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.playwright.entity.UserInfoRequest;
@@ -12,8 +13,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 百度对话AI工具类
@@ -211,7 +217,7 @@ public class BaiduUtil {
             return "false";
         } catch (com.microsoft.playwright.impl.TargetClosedError e) {
             return "false";
-        } catch (com.microsoft.playwright.TimeoutError e) {
+        } catch (TimeoutError e) {
             return "false";
         } catch (Exception e) {
             // 如果是页面导航导致的异常，可能是登录成功了
@@ -296,8 +302,9 @@ public class BaiduUtil {
             // 添加发送后截图
             logInfo.sendImgData(page, userId + "百度对话AI发送提示词", userId);
 
-            // 等待并提取回复内容
+            // 等待但不提取回复内容，//百度AI图文并茂提取图片HTML无效且过长
             String content = extractBaiduContent(page, userId);
+//            String content = "百度AI调用成功";  //百度AI图文并茂提取图片HTML无效且过长
 
             // 添加获取结果截图
             logInfo.sendImgData(page, userId + "百度对话AI生成完成", userId);
@@ -325,11 +332,31 @@ public class BaiduUtil {
             logInfo.sendTaskLog("配置百度对话AI模式 - 深度搜索: " + enableInternet, userId, "百度AI");
 
             // 先切换到智能模式
-            switchToSmartMode(page, userId);
+//            switchToSmartMode(page, userId);
 
             // 设置深度搜索模式状态
-            toggleInternetSearchMode(page, enableInternet, userId);
-
+//            toggleInternetSearchMode(page, enableInternet, userId);
+            if(roles != null && (roles.contains("baidu-sdss") || roles.contains("sdss"))) {
+                page.locator(".deep-search-icon").click();
+                Thread.sleep(500);
+            }
+            if(roles !=null &&(roles.contains("dsr1") ||roles.contains("dsv3") ||roles.contains("wenxin") || roles.contains("web"))) {
+                page.locator(".model-select-toggle").click();
+                Thread.sleep(500);
+                if(roles !=null &&(roles.contains("web"))) {
+                    page.locator(".cos-switcher.cos-sm").click();
+                    Thread.sleep(500);
+                }
+                if(roles !=null &&roles.contains("dsr1")) {
+                    page.locator(".input-capsules-model-list-item:has-text('DeepSeek-R1')").click();
+                }else if(roles != null && roles.contains("dsv3")) {
+                    page.locator(".input-capsules-model-list-item:has-text('DeepSeek-V3')").click();
+                }else if(roles != null && roles.contains("wenxin")) {
+                    page.locator(".input-capsules-model-list-item:has-text('文心')").click();
+                }
+                Thread.sleep(500);
+                page.locator(".model-select-toggle").click();
+            }
             // 等待配置生效
             Thread.sleep(1000);
 
@@ -493,8 +520,8 @@ public class BaiduUtil {
 
             Locator inputBox = page.locator(inputSelector);
             if (inputBox.count() == 0) {
-                Locator textareaByCss = page.locator("#chat-textarea");
-                if(textareaByCss.isVisible()) {
+                inputBox = page.locator("#chat-textarea");
+                if(inputBox.isVisible()) {
                     Thread.sleep(500);
                     inputBox.fill(userPrompt);
                 }
@@ -548,48 +575,49 @@ public class BaiduUtil {
             logInfo.sendTaskLog("等待百度对话AI回复...", userId, "百度AI");
 
             // 定期截图任务
-            AtomicInteger screenshotCounter = new AtomicInteger(0);
-            Thread screenshotThread = new Thread(() -> {
-                try {
-                    while (!Thread.currentThread().isInterrupted()) {
-                        Thread.sleep(8000); // 每8秒截图一次
-                        if (!Thread.currentThread().isInterrupted()) {
-                            // 检查页面是否已关闭
-                            if (page.isClosed()) {
-                                break;
-                            }
-                            int count = screenshotCounter.getAndIncrement();
-                            logInfo.sendImgData(page, userId + "百度对话AI生成过程" + count, userId);
-                        }
-                    }
-                } catch (InterruptedException e) {
-                    // 正常中断，不需要处理
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            screenshotThread.start();
+//            AtomicInteger screenshotCounter = new AtomicInteger(0);
+//            Thread screenshotThread = new Thread(() -> {
+//                try {
+//                    while (!Thread.currentThread().isInterrupted()) {
+//                        Thread.sleep(8000); // 每8秒截图一次
+//                        if (!Thread.currentThread().isInterrupted()) {
+//                            // 检查页面是否已关闭
+//                            if (page.isClosed()) {
+//                                break;
+//                            }
+//                            int count = screenshotCounter.getAndIncrement();
+//                            logInfo.sendImgData(page, userId + "百度对话AI生成过程" + count, userId);
+//                        }
+//                    }
+//                } catch (InterruptedException e) {
+//                    // 正常中断，不需要处理
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                }
+//            });
+//            screenshotThread.start();
 
+            Locator container = page.locator("div.chat-qa-container").last();
             // 百度对话AI回复内容选择器，使用您提供的准确XPath
             String[] replySelectors = {
-                    "//*[@id=\"1\"]/div/div",             // 百度AI回答内容的准确XPath
-                    "//*[@id=\"answer_text_id\"]/div",     // 备选选择器
-                    ".message-item.assistant .content",
-                    ".chat-message.assistant",
-                    ".reply-content",
-                    "[data-role='assistant']",
-                    ".ai-response"
+//                    "//*[@id=\"1\"]/div/div"             // 百度AI回答内容的准确XPath
+//                    "//*[@id=\"answer_text_id\"]/div",     // 备选选择器
+//                    ".message-item.assistant .content",
+//                    ".chat-message.assistant",
+//                    ".reply-content",
+//                    "[data-role='assistant']",
+//                    ".ai-response"
+//                    "div.cosd-markdown-content"
+                    "div.data-show-ext"
             };
-
             try {
-                // 等待回复出现，最多等待2分钟
+                // 等待回复出现，最多等待3秒
                 boolean replyFound = false;
                 Locator replyElement = null;
 
                 for (String selector : replySelectors) {
                     try {
-                        replyElement = page.locator(selector);
-                        replyElement.waitFor(new Locator.WaitForOptions().setTimeout(120000));
+                        replyElement = container.locator(selector).last();
                         replyFound = true;
                         // 移除选择器日志输出，保持任务流程简洁
                         break;
@@ -611,6 +639,7 @@ public class BaiduUtil {
 
                     for (int i = 0; i < 10; i++) {
                         try {
+
                             Thread.sleep(10000);
                             boolean visible = page.locator("//img[@class='pause-icon']").isVisible();
                             if (!visible) {
@@ -629,6 +658,7 @@ public class BaiduUtil {
 
                 } catch (Exception e) {
                     // 如果没有检测到暂停按钮变化，使用内容稳定性检测
+
                     logInfo.sendTaskLog("未检测到暂停按钮变化，使用内容稳定性检测", userId, "百度AI");
 
                     String lastContent = "";
@@ -639,6 +669,7 @@ public class BaiduUtil {
 
                         try {
                             String currentContent = replyElement.innerHTML();
+                            //                            String currentContent = replyElement.innerText();
                             if (currentContent != null && currentContent.equals(lastContent)) {
                                 stableCount++;
                                 if (stableCount >= 3) { // 连续3秒内容不变，认为生成完成
@@ -659,55 +690,66 @@ public class BaiduUtil {
                 logInfo.sendTaskLog("AI回复生成完成，正在提取内容", userId, "百度AI");
             } finally {
                 // 停止截图任务
-                screenshotThread.interrupt();
+//                screenshotThread.interrupt();
             }
 
-            // 提取最终内容
-            String content = "";
-            for (String selector : replySelectors) {
-                try {
-                    Locator elements = page.locator(selector);
-                    if (elements.count() > 0) {
-                        // 获取最新的回复（通常是最后一个）
-                        content = elements.last().innerHTML();
-                        if (content != null && !content.trim().isEmpty()) {
-                            logInfo.sendTaskLog("成功提取内容，长度: " + content.length(), userId, "百度AI");
-                            break;
-                        }
-                    }
-                } catch (Exception e) {
-                    // 继续尝试下一个选择器
-                    continue;
-                }
-            }
-
-            // 如果还是没有内容，尝试通用提取
-            if (content == null || content.trim().isEmpty()) {
-                content = (String) page.evaluate("""
-                            () => {
-                                // 尝试查找包含AI回复的元素
-                                const possibleElements = document.querySelectorAll('div, p, span');
-                                let longestText = '';
-                                
-                                for (let element of possibleElements) {
-                                    const text = element.innerHTML;
-                                    if (text && text.length > longestText.length && text.length > 100) {
-                                        longestText = text;
-                                    }
-                                }
-                                
-                                return longestText || '未能提取到内容';
-                            }
-                        """);
-            }
-
-            logInfo.sendTaskLog("内容提取完成", userId, "百度AI");
-            return content;
+//            // 提取最终内容
+//            String content = "";
+//            StringBuilder contentBuilder = new StringBuilder();
+//            for (String selector : replySelectors) {
+//                try {
+//                    Locator elements = container.locator(selector);
+//                    if (elements.count() > 0) {
+//                        // 获取最新的回复
+//
+//                        elements.all().forEach((e) -> contentBuilder.append(e.innerHTML()));
+//                        content=contentBuilder.toString();
+//                        if (content != null && !content.toString().trim().isEmpty()) {
+//                            if(content.length() > 8192){
+//
+//                                content = content.substring(0, 8192);
+//
+//                                logInfo.sendTaskLog("成功提取内容，长度已裁剪: " + 8192, userId, "百度AI");
+//                            }else{
+//                                logInfo.sendTaskLog("成功提取内容，长度: " + content.length(), userId, "百度AI");
+//                            }
+//                            break;
+//                        }
+//                    }
+//                } catch (Exception e) {
+//                    // 继续尝试下一个选择器
+//                    continue;
+//                }
+//            }
+//
+//            // 如果还是没有内容，尝试通用提取
+//            if (content == null || content.toString().trim().isEmpty()) {
+//                content = (String)page.evaluate("""
+//                            () => {
+//                                // 尝试查找包含AI回复的元素
+//                                const possibleElements = document.querySelectorAll('div, p, span');
+//                                let longestText = '';
+//
+//                                for (let element of possibleElements) {
+//                                    const text = element.innerHTML;
+//                                    if (text && text.length > longestText.length && text.length > 100) {
+//                                        longestText = text;
+//                                    }
+//                                }
+//
+//                                return longestText || '未能提取到内容';
+//                            }
+//                        """);
+//            }
+//
+//            logInfo.sendTaskLog("内容提取完成", userId, "百度AI");
+//            return content.toString();
 
         } catch (Exception e) {
             logInfo.sendTaskLog("内容提取失败", userId, "百度AI");
             throw e;
         }
+        return "百度AI调用成功";
     }
 
     /**
@@ -912,16 +954,60 @@ public class BaiduUtil {
 
         clipboardLockManager.runWithClipboardLock(() -> {
             try {
+                Locator container = page.locator("div.chat-qa-container").last();
+                Locator directShareButton = container.locator("//i[contains(@class, 'cos-icon') and contains(@class, 'cos-icon-share1')]");
+                if(directShareButton.count()>0){
+                    directShareButton.last().click();
+                }
+                Thread.sleep(500);
+                String[] copySelectors = {
+                        "button:has-text('复制链接')",
+                        ".copy-link",
+                        "[data-testid='copy-link']"
+                };
+
+                Locator copyButton = null;
+                for (String selector : copySelectors) {
+                    Locator temp = page.locator(selector);
+
+                    if (temp.count() > 0) {
+                        copyButton = temp.first();
+                        break;
+                    }
+                }
+
+                if (copyButton != null) {
+                    copyButton.click();
+                    Thread.sleep(1000);
+
+                    // 读取剪贴板内容
+                    String shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
+                    shareUrl = shareUrl.substring(shareUrl.indexOf('h'));
+                    shareUrlRef.set(shareUrl);
+
+                    logInfo.sendTaskLog("分享链接获取成功", userId, "百度AI");
+                    return;
+                }
+                // 如果没找到按钮，不输出"未找到"信息
+
+                // 没有分享，先点击编辑，分享按钮才出现
+                Locator edit = container.locator("i.cos-icon.cos-icon-rewrite");
+
+                if(edit.count()>0){
+                    edit.click();
+                }
+                Thread.sleep(500);
                 // 不输出"正在获取分享链接..."，用户不需要看到这个过程
 
                 // 百度对话AI分享按钮选择器，使用通用的XPath模式
                 String[] shareSelectors = {
-                        "//*[starts-with(@id,'chat-id-')]/div/div/div/div/div[2]/div/div[6]", // 通用的分享按钮XPath
-                        "//*[@id=\"chat-id-20872991305\"]/div/div/div/div/div[2]/div/div[6]", // 具体的分享按钮
-                        ".share-button",
-                        "button:has-text('分享')",
-                        "[data-testid='share-button']",
-                        ".action-share"
+//                        "//*[starts-with(@id,'chat-id-')]/div/div/div/div/div[2]/div/div[6]", // 通用的分享按钮XPath
+//                        "//*[@id=\"chat-id-20872991305\"]/div/div/div/div/div[2]/div/div[6]", // 具体的分享按钮
+//                        ".share-button",
+//                        "button:has-text('分享')",
+//                        "[data-testid='share-button']",
+//                        ".action-share",
+                        "i.share-button.cos-icon"
                 };
 
                 Locator shareButton = null;
@@ -941,7 +1027,7 @@ public class BaiduUtil {
                     try {
                         String linkInputSelector = "/html/body/div[8]/div[2]/div[2]/div/div[1]/div/input";
                         Locator linkInput = page.locator(linkInputSelector);
-                        linkInput.waitFor(new Locator.WaitForOptions().setTimeout(10000));
+//                        linkInput.waitFor(new Locator.WaitForOptions().setTimeout(10000));
 
                         String shareUrl = linkInput.inputValue();
                         if (shareUrl != null && !shareUrl.trim().isEmpty()) {
@@ -953,32 +1039,6 @@ public class BaiduUtil {
                         // 静默处理，不输出调试信息
                     }
 
-                    // 降级方案：查找复制链接按钮
-                    String[] copySelectors = {
-                            "button:has-text('复制链接')",
-                            ".copy-link",
-                            "[data-testid='copy-link']"
-                    };
-
-                    Locator copyButton = null;
-                    for (String selector : copySelectors) {
-                        Locator temp = page.locator(selector);
-                        if (temp.count() > 0) {
-                            copyButton = temp.first();
-                            break;
-                        }
-                    }
-
-                    if (copyButton != null) {
-                        copyButton.click();
-                        Thread.sleep(1000);
-
-                        // 读取剪贴板内容
-                        String shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
-                        shareUrlRef.set(shareUrl);
-
-                        logInfo.sendTaskLog("分享链接获取成功", userId, "百度AI");
-                    }
                     // 如果没找到按钮，不输出"未找到"信息
                 }
                 // 如果没找到分享按钮，不输出"未找到分享按钮"信息
@@ -1111,13 +1171,122 @@ public class BaiduUtil {
         try {
             // 获取会话ID
             String sessionId = extractSessionId(page);
-
             // 获取分享链接
             String shareUrl = getBaiduShareUrl(page, userId);
+            String shareImgUrl = "";
+            if(shareUrl != null && !shareUrl.trim().isEmpty()) {
+                String[] shareSelectors = {
+                        "button:has-text('分享图片')",
+                };
 
+                Locator shareButton = null;
+                for (String selector : shareSelectors) {
+                    Locator temp = page.locator(selector);
+
+                    if (temp.count() > 0) {
+                        shareButton = temp.first();
+                        break;
+                    }
+                }
+                shareButton.click();
+                Thread.sleep(12000);
+
+                shareImgUrl = ScreenshotUtil.downloadAndUploadFile(page,screenshotUtil.uploadUrl,() ->{
+                    String[] copySelectors = {
+                            "button:has-text('下载图片')",
+                    };
+
+                    Locator copyButton = null;
+                    for (String selector : copySelectors) {
+                        Locator temp = page.locator(selector);
+
+                        if (temp.count() > 0) {
+                            copyButton = temp.first();
+                            break;
+                        }
+                    }
+                    copyButton.click();
+                });
+            }
             // 获取原链接并提取ori_lid
             String originalUrl = getBaiduOriginalUrl(page, userId);
             String oriLid = extractOriLidFromUrl(originalUrl);
+
+            // 如果无法获取分享链接，尝试获取截图链接
+            if (shareUrl == null || shareUrl.trim().isEmpty()) {
+                Locator element = page.locator("div#conversation-flow-container").last();
+                Locator answer = page.locator("//*[@id=\"1\"]/div/div").last();
+
+                double scrollHeight = ((Number)page.evaluate("(ele) => ele.scrollHeight", element.elementHandle())).doubleValue();
+                double scrollTop = ((Number)page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
+                double clientHeight = ((Number)page.evaluate("(ele) => ele.clientHeight", element.elementHandle())).doubleValue();
+
+                // 先悬停在滑动文本框上以便后续滚动
+                answer.hover();
+
+                // 先滚动到页面顶部以便定位
+                while(scrollTop > 5){
+                    page.mouse().wheel(0,-clientHeight);
+                    Thread.sleep(500);
+                    scrollTop = ((Number)page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
+                }
+                // 跳过之前的问答
+                Locator containers = page.locator("div.chat-qa-container");
+                for (int i = 0; i < containers.count()-1; ++i) {
+                    double containerHeight = ((Number)page.evaluate("(ele) => ele.clientHeight", containers.nth(i).elementHandle())).doubleValue();
+                    page.mouse().wheel(0,containerHeight);
+                }
+                // 对最新一次回复截多张图
+                ArrayList<byte[]> images = new ArrayList<>();
+                while(clientHeight+scrollTop + 20 < scrollHeight){
+                    images.add(element.screenshot(new Locator.ScreenshotOptions()));
+                    Thread.sleep(500);
+                    page.mouse().wheel(0,clientHeight);
+                    scrollTop = ((Number)page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
+                }
+                // 拼接多张截图
+                BufferedImage firstImage = ImageIO.read(new ByteArrayInputStream(images.get(0)));
+                int width = firstImage.getWidth();
+                int totalHeight = 0;
+
+                // 计算总高度
+                for (byte[] image : images) {
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(image));
+                    totalHeight += img.getHeight();
+                }
+
+                // 创建一个新的 BufferedImage，用于拼接
+                BufferedImage result = new BufferedImage(width, totalHeight, BufferedImage.TYPE_INT_ARGB);
+                int currentHeight = 0;
+
+                // 按顺序拼接图片
+                for (byte[] image : images) {
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(image));
+                    result.getGraphics().drawImage(img, 0, currentHeight, null);
+                    currentHeight += img.getHeight();
+                }
+
+                // 将结果图片转换为 byte[] 数组
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ImageIO.write(result, "png", baos);
+                byte[] concatenatedImageBytes = baos.toByteArray();
+
+                String filepath=userId+"百度AI合成截图.png";
+
+                FileOutputStream fos = new FileOutputStream(filepath);
+                fos.write(concatenatedImageBytes);
+                fos.close();
+
+                String response = ScreenshotUtil.uploadFile(screenshotUtil.uploadUrl,filepath);
+                JSONObject jsonObject = JSONObject.parseObject(response);
+
+                shareUrl = jsonObject.get("url")+"";
+                if(shareImgUrl==null || shareImgUrl.trim().isEmpty()) {
+                    shareImgUrl = shareUrl;
+                }
+                // 不输出具体URL，只记录获取方式
+                logInfo.sendTaskLog("已获取图片链接", userId, "百度AI");
+            }
 
             // 如果无法获取分享链接，使用当前页面URL作为默认值
             if (shareUrl == null || shareUrl.trim().isEmpty()) {
@@ -1129,10 +1298,11 @@ public class BaiduUtil {
             // 设置请求参数 - 将ori_lid保存到baiduChatId字段用于会话连续性
             String chatIdToSave = (oriLid != null && !oriLid.trim().isEmpty()) ? oriLid : sessionId;
             userInfoRequest.setBaiduChatId(chatIdToSave);
-            userInfoRequest.setDraftContent(content);
+//            userInfoRequest.setDraftContent(content);
+            userInfoRequest.setDraftContent(shareImgUrl);
             userInfoRequest.setAiName(parseBaiduRoles(roles));
             userInfoRequest.setShareUrl(shareUrl != null ? shareUrl : "");
-            userInfoRequest.setShareImgUrl(""); // 百度对话AI暂不支持分享图片
+            userInfoRequest.setShareImgUrl(shareImgUrl); // 百度对话AI暂不支持分享图片
             // 保存到数据库
             RestUtils.post(url + "/saveDraftContent", userInfoRequest);
 
@@ -1146,11 +1316,12 @@ public class BaiduUtil {
             }
 
             // 发送结果数据，投递到媒体功能由前端处理
-            String formattedContent = formatBaiduContent(content);
+//            String formattedContent = formatBaiduContent(content);
+            String formattedContent = content;
 
             // 使用原链接作为分享链接，如果获取不到原链接则使用传统分享链接
-            String finalShareUrl = (originalUrl != null && !originalUrl.trim().isEmpty()) ? originalUrl : shareUrl;
-            logInfo.sendResData(formattedContent, userId, "百度AI", "RETURN_BAIDU_RES", finalShareUrl, "");
+            String finalShareUrl = (shareUrl != null && !shareUrl.trim().isEmpty()) ? shareUrl : originalUrl;
+            logInfo.sendResData(formattedContent, userId, "百度AI", "RETURN_BAIDU_RES", finalShareUrl, shareImgUrl);
 
             if (oriLid != null && !oriLid.trim().isEmpty()) {
                 logInfo.sendTaskLog("百度AI会话ID已保存: " + oriLid, userId, "百度AI");

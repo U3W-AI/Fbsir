@@ -48,7 +48,12 @@
                 <h3 class="model-name">{{ model.name }}</h3>
               </div>
               <!-- 预览内容 -->
-              <div class="preview-content">{{ extractPlainText(model.preview) }}</div>
+              <div class="preview-content" v-if="model.name == '百度对话AI'">
+                  <img
+                  :src="model.content"
+                />
+              </div>
+              <div class="preview-content" v-else>{{ extractPlainText(model.preview) }}</div>
               <!-- 时间 -->
               <div class="response-time">{{ model.responseTime }}</div>
             </div>
@@ -69,7 +74,14 @@
           </button>
         </div>
         <div class="modal-content">
-          <div class="prose markdown-body" v-html="renderMarkdown(selectedModel.content)"></div>
+          <!-- <div class="prose markdown-body" v-html="renderMarkdown(selectedModel.content)"></div> -->
+              <div class="preview-content" v-if="selectedModel.name == '百度对话AI'">
+                  <img
+                  :src="selectedModel.content"
+                  style="max-width: 100%; height: auto;"
+                />
+              </div>
+              <div class="preview-content" v-else>{{ extractPlainText(selectedModel.preview) }}</div>
         </div>
         <div class="modal-footer">
           <div class="response-time-footer">{{ selectedModel.responseTime }}</div>
