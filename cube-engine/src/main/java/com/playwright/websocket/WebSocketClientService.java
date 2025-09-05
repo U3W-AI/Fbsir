@@ -129,6 +129,48 @@ public class WebSocketClientService {
                                 }
                             }, "百度AI", userInfoRequest.getUserId());
                         }
+                        // 处理包含"deepseek"的消息
+                        if(message.contains("deepseek")){
+                            concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
+                                try {
+                                    aigcController.startDS(userInfoRequest);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }, "DeepSeek智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
+                        }
+                    }
+
+                    // 处理检查DeepSeek登录状态的消息
+                    if (message.contains("PLAY_CHECK_DEEPSEEK_LOGIN")) {
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                // 先尝试获取登录状态
+                                String checkLogin = browserController.checkDSLogin(userInfoRequest.getUserId());
+
+                                // 构建并发送状态消息 - 使用与其他AI智能体一致的格式
+                                userInfoRequest.setStatus(checkLogin);
+                                userInfoRequest.setType("RETURN_DEEPSEEK_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                // 发送错误状态 - 使用与其他AI智能体一致的格式
+                                userInfoRequest.setStatus("false");
+                                userInfoRequest.setType("RETURN_DEEPSEEK_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            }
+                        }, "DeepSeek登录检查", userInfoRequest.getUserId());
+                    }
+
+                    // 处理获取DeepSeek二维码的消息
+                    if(message.contains("PLAY_GET_DEEPSEEK_QRCODE")){
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                browserController.getDSQrCode(userInfoRequest.getUserId());
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "获取DeepSeek二维码", userInfoRequest.getUserId());
                     }
 
                     // 处理包含"START_YB"的消息

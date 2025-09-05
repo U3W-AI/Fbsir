@@ -49,8 +49,139 @@ public class BrowserController {
     @Autowired
     private BaiduUtil baiduUtil;
 
+    @Autowired
+    private DeepSeekUtil deepSeekUtil;
+
     public static final ConcurrentHashMap<String, String> loginMap = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Integer> lockMap = new ConcurrentHashMap<>();
+
+    /**
+     * 检查DeepSeek登录状态
+     * @param userId 用户唯一标识
+     * @return 登录状态："false"表示未登录，手机号表示已登录
+     */
+    @Operation(summary = "检查DeepSeek登录状态", description = "返回手机号表示已登录，false 表示未登录")
+    @GetMapping("/checkDSLogin")
+    public String checkDSLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "deepseek")) {
+            Page page = browserUtil.getOrCreatePage(context);
+
+            // 导航到DeepSeek页面并确保完全加载
+            page.navigate("https://chat.deepseek.com/");
+            page.waitForLoadState();
+            page.waitForTimeout(1500); // 额外等待1.5秒确保页面完全渲染
+
+            // 多次尝试检测登录状态，最多尝试3次
+            for (int attempt = 0; attempt < 3; attempt++) {
+                // 先使用工具类方法检测
+                String loginStatus = deepSeekUtil.checkLoginStatus(page, false);
+
+                // 如果检测到已登录，直接返回
+                if (!"false".equals(loginStatus)) {
+                    logMsgUtil.sendTaskLog("DeepSeek已登录，用户: " + loginStatus, userId, "DeepSeek");
+                    return loginStatus;
+                }
+
+                // 如果当前尝试失败，但还有更多尝试，等待后重试
+                if (attempt < 2) {
+                    page.waitForTimeout(1000);
+                    // 刷新页面重试
+                    page.reload();
+                    page.waitForLoadState();
+                    page.waitForTimeout(1500);
+                }
+            }
+
+            // 所有尝试都失败，返回未登录状态
+            return "false";
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    /**
+     * 获取DeepSeek登录二维码
+     * @param userId 用户唯一标识
+     * @return 二维码图片URL 或 "false"表示失败
+     */
+    @Operation(summary = "获取DeepSeek登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
+    @GetMapping("/getDSQrCode")
+    public String getDSQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException, IOException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "deepseek")) {
+            Page page = browserUtil.getOrCreatePage(context);
+
+            // 首先检查当前登录状态
+            String currentStatus = deepSeekUtil.checkLoginStatus(page, true);
+            if (!"false".equals(currentStatus)) {
+                // 已经登录，直接返回状态
+                JSONObject statusObject = new JSONObject();
+                statusObject.put("status", currentStatus);
+                statusObject.put("userId", userId);
+                statusObject.put("type", "RETURN_DEEPSEEK_STATUS");
+                webSocketClientService.sendMessage(statusObject.toJSONString());
+                logMsgUtil.sendTaskLog("DeepSeek已登录，用户: " + currentStatus, userId, "DeepSeek");
+
+                // 截图返回当前页面
+                return screenshotUtil.screenshotAndUpload(page, "deepseekLoggedIn.png");
+            }
+
+            // 未登录，获取二维码截图URL
+            String url = deepSeekUtil.waitAndGetQRCode(page, userId, screenshotUtil);
+
+            if (!"false".equals(url)) {
+                // 发送二维码URL到WebSocket
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("url", url);
+                jsonObject.put("userId", userId);
+                jsonObject.put("type", "RETURN_PC_DEEPSEEK_QRURL");
+                webSocketClientService.sendMessage(jsonObject.toJSONString());
+
+                // 实时监测登录状态 - 最多等待60秒
+                int maxAttempts = 30; // 30次尝试
+                for (int i = 0; i < maxAttempts; i++) {
+                    // 每2秒检查一次登录状态（不刷新页面）
+                    Thread.sleep(2000);
+
+                    // 检查当前页面登录状态
+                    String loginStatus = deepSeekUtil.checkLoginStatus(page, false);
+
+                    if (!"false".equals(loginStatus)) {
+                        // 登录成功，发送状态到WebSocket
+                        JSONObject jsonObjectTwo = new JSONObject();
+                        jsonObjectTwo.put("status", loginStatus);
+                        jsonObjectTwo.put("userId", userId);
+                        jsonObjectTwo.put("type", "RETURN_DEEPSEEK_STATUS");
+                        webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
+
+                        // 登录成功，跳出循环
+                        logMsgUtil.sendTaskLog("DeepSeek登录成功: " + loginStatus, userId, "DeepSeek");
+                        break;
+                    }
+
+                    // 每5次尝试重新截图一次，可能二维码已更新
+                    if (i % 5 == 4) {
+                        try {
+                            url = screenshotUtil.screenshotAndUpload(page, "checkDeepSeekLogin.png");
+                            JSONObject qrUpdateObject = new JSONObject();
+                            qrUpdateObject.put("url", url);
+                            qrUpdateObject.put("userId", userId);
+                            qrUpdateObject.put("type", "RETURN_PC_DEEPSEEK_QRURL");
+                            webSocketClientService.sendMessage(qrUpdateObject.toJSONString());
+                        } catch (Exception e) {
+                            UserLogUtil.sendExceptionLog(userId, "deepSeek获取二维码截图失败", "checkDeepSeekLogin", e, logUrl + "/saveLogInfo");
+                        }
+                    }
+                }
+
+                return url;
+            }
+        } catch (Exception e) {
+            logMsgUtil.sendTaskLog("获取DeepSeek登录二维码失败: " + e.getMessage(), userId, "DeepSeek");
+            throw e;
+        }
+        return "false";
+    }
+
 
     /**
      * 检查元宝主站登录状态
@@ -109,6 +240,7 @@ public class BrowserController {
             throw e;
         }
     }
+
 
 
 

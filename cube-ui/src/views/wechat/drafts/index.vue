@@ -39,7 +39,7 @@
             </div>
           </div>
 
-          <!-- AI回答卡片网格 -->
+           AI回答卡片网格
           <div class="response-grid">
             <div v-for="(model, mIndex) in item.aiResponses" :key="mIndex" class="response-card" @click="showModelResponse(model)">
               <!-- 模型标题 -->
@@ -53,11 +53,25 @@
                   :src="model.content"
                 />
               </div>
+              <div class="preview-content" v-else>
+                <template v-if="extractPlainText(model.preview).isImage">
+                  <img
+                    :src="extractPlainText(model.preview).url"
+                    class="ai-image-preview"
+                    :alt="`图片预览`"
+                  />
+                </template>
+                <template v-else>
+                  {{ extractPlainText(model.preview).text }}
+                </template>
+              </div>
               <div class="preview-content" v-else>{{ extractPlainText(model.preview) }}</div>
               <!-- 时间 -->
               <div class="response-time">{{ model.responseTime }}</div>
             </div>
           </div>
+
+
         </div>
       </div>
     </div>
@@ -81,7 +95,12 @@
                   style="max-width: 100%; height: auto;"
                 />
               </div>
-              <div class="preview-content" v-else>{{ extractPlainText(selectedModel.preview) }}</div>
+            <div class="preview-content" v-else-if="selectedModel.name == 'DeepSeek'">
+              <img
+                :src="selectedModel.content"
+                style="max-width: 100%; height: auto;"
+              />
+            </div>
         </div>
         <div class="modal-footer">
           <div class="response-time-footer">{{ selectedModel.responseTime }}</div>
@@ -123,7 +142,13 @@ export default {
     };
   },
   created() {
-    this.getList();
+     this.getList();
+    (this.item.aiResponses || []).forEach(model => {
+      if (model.name === '百度对话AI') {
+        model.imageLoading = true;
+        model.imageError = false;
+      }
+    });
   },
   methods: {
     // 修改 markdown 渲染方法
@@ -131,16 +156,48 @@ export default {
       return marked(content);
     },
     // 提取纯文本内容，去除HTML标签
+    // extractPlainText(content) {
+    //   if (!content) return '';
+    //   // 创建临时DOM元素来解析HTML
+    //   const tempDiv = document.createElement('div');
+    //   tempDiv.innerHTML = content;
+    //   // 获取纯文本内容
+    //   let plainText = tempDiv.textContent || tempDiv.innerText || '';
+    //   // 清理多余的空白字符
+    //   plainText = plainText.replace(/\s+/g, ' ').trim();
+    //   return plainText;
+    // },
+
+// 提取内容，如果是图片链接则返回图片信息，否则返回纯文本
     extractPlainText(content) {
       if (!content) return '';
-      // 创建临时DOM元素来解析HTML
+
+      // 检查内容是否是图片链接
+      const imageRegex = /\.(jpg|jpeg|png|gif|bmp|webp)$/i;
+      const trimmedContent = content.trim();
+
+      if (imageRegex.test(trimmedContent)) {
+        // 返回图片标记对象
+        return {
+          isImage: true,
+          url: trimmedContent
+        };
+      }
+
+      // 处理文本内容
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = content;
-      // 获取纯文本内容
       let plainText = tempDiv.textContent || tempDiv.innerText || '';
-      // 清理多余的空白字符
       plainText = plainText.replace(/\s+/g, ' ').trim();
-      return plainText;
+
+      if (plainText.length > 100) {
+        plainText = plainText.substring(0, 100) + '...';
+      }
+
+      return {
+        isImage: false,
+        text: plainText
+      };
     },
     getList() {
       this.loading = true;
@@ -358,6 +415,37 @@ body {
   text-overflow: ellipsis; /* 超出显示省略号 */
   word-break: break-word; /* 支持长单词换行 */
   white-space: normal; /* 允许正常换行 */
+}
+
+.ai-image {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.ai-image:hover {
+  transform: scale(1.02);
+}
+
+.image-loading, .image-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  color: #666;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.image-loading i, .image-error i {
+  margin-right: 8px;
+  font-size: 1.2rem;
+}
+
+.image-error {
+  color: #e74c3c;
 }
 
 .response-time {
