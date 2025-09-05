@@ -466,6 +466,20 @@
             isExpanded: true,
             isSingleSelect: false
           },
+          {
+            name: "DeepSeek",
+            avatar: require("../../../assets/logo/Deepseek.png"),
+            capabilities: [
+              { label: "深度思考", value: "deep_thinking" },
+              { label: "联网搜索", value: "web_search" },
+            ],
+            selectedCapabilities: ["deep_thinking", "web_search"],
+            enabled: true,
+            status: "idle",
+            progressLogs: [],
+            isExpanded: true,
+            isSingleSelect: false,  // 添加单选标记
+          },
 
         ],
         promptInput: "",
@@ -651,6 +665,16 @@
               }
             }
 
+          }
+
+          if (ai.name === "DeepSeek" && ai.enabled) {
+            this.userInfoReq.roles = this.userInfoReq.roles + "deepseek,";
+            if (ai.selectedCapabilities.includes("deep_thinking")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "ds-sdsk,";
+            }
+            if (ai.selectedCapabilities.includes("web_search")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "ds-lwss,";
+            }
           }
 
         });
@@ -881,6 +905,8 @@
           this.userInfoReq.ybDsChatId = dataObj.chatId;
         } else if(dataObj.type === "RETURN_BAIDU_CHATID" && dataObj.chatId) {
           this.userInfoReq.baiduChatId = dataObj.chatId;
+        } else if(dataObj.type === "RETURN_DEEPSEEK_CHATID" && dataObj.chatId) {
+          this.userInfoReq.deepSeekChatId = dataObj.chatId;
         }
         // else if (dataObj.type === 'RETURN_TY_CHATID' && dataObj.chatId) {
         //   this.userInfoReq.tyChatId = dataObj.chatId;
@@ -982,6 +1008,10 @@
           case "RETURN_BAIDU_RES":
             console.log("收到百度AI消息:", dataObj);
             targetAI = this.enabledAIs.find((ai) => ai.name === "百度AI");
+            break;
+          case "RETURN_DEEPSEEK_RES":
+            console.log("收到DeepSeek消息:", dataObj);
+            targetAI = this.enabledAIs.find((ai) => ai.name === "DeepSeek");
             break;
           // case 'RETURN_TY_RES':
           //   console.log('收到通义千问消息:', data);
@@ -1386,6 +1416,20 @@
             progressLogs: [],
             isExpanded: true,
           },
+          {
+            name: "DeepSeek",
+            avatar: require("../../../assets/logo/Deepseek.png"),
+            capabilities: [
+              { label: "深度思考", value: "deep_thinking" },
+              { label: "联网搜索", value: "web_search" },
+            ],
+            selectedCapabilities: ["deep_thinking", "web_search"],
+            enabled: true,
+            status: "idle",
+            progressLogs: [],
+            isExpanded: true,
+            isSingleSelect: false,  // 添加单选标记
+          },
           // {
           //   name: '通义千问',
           //   avatar: require('../../../assets/ai/qw.png'),
@@ -1461,6 +1505,8 @@
       // 根据AI名称获取图片样式
       getImageStyle(aiName) {
         const widthMap = {
+          baidu : "700px",
+          DeepSeek: "700px",
           豆包: "560px",
           "腾讯元宝T1": "700px",
           "腾讯元宝DS": "700px",
@@ -2398,6 +2444,92 @@
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+  }
+
+
+  /* 用于处理DeepSeek特殊格式的样式 */
+  .deepseek-format-container {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    border: 1px solid #eaeaea;
+  }
+
+  /* DeepSeek响应内容的特定样式 */
+  ::v-deep .deepseek-response {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    font-family: Arial, sans-serif;
+  }
+
+  ::v-deep .deepseek-response pre {
+    background-color: #f5f5f5;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    overflow-x: auto;
+    display: block;
+    margin: 10px 0;
+  }
+
+  ::v-deep .deepseek-response code {
+    background-color: #f5f5f5;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+
+  ::v-deep .deepseek-response table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+  }
+
+  ::v-deep .deepseek-response th,
+  ::v-deep .deepseek-response td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+  }
+
+  ::v-deep .deepseek-response th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+  }
+
+  ::v-deep .deepseek-response h1,
+  ::v-deep .deepseek-response h2,
+  ::v-deep .deepseek-response h3,
+  ::v-deep .deepseek-response h4,
+  ::v-deep .deepseek-response h5,
+  ::v-deep .deepseek-response h6 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #222;
+  }
+
+  ::v-deep .deepseek-response a {
+    color: #0066cc;
+    text-decoration: none;
+  }
+
+  ::v-deep .deepseek-response blockquote {
+    border-left: 4px solid #ddd;
+    padding-left: 15px;
+    margin: 15px 0;
+    color: #555;
+  }
+
+  ::v-deep .deepseek-response ul,
+  ::v-deep .deepseek-response ol {
+    padding-left: 20px;
+    margin: 10px 0;
   }
 
 

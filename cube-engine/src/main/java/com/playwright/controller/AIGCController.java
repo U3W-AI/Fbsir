@@ -78,6 +78,9 @@ public class AIGCController {
     @Autowired
     private BaiduUtil baiduUtil;
 
+    @Autowired
+    private DeepSeekUtil deepSeekUtil;
+
     @Value("${cube.uploadurl}")
     private String uploadUrl;
 
@@ -616,6 +619,265 @@ public class AIGCController {
             throw e;
         }
     }
+
+    /**
+     * 处理DeepSeek的常规请求
+     *
+     * @param userInfoRequest 包含会话ID和用户指令
+     * @return AI生成的文本内容
+     */
+    @Operation(summary = "启动DeepSeek AI生成", description = "调用DeepSeek AI平台生成内容并抓取结果")
+    @ApiResponse(responseCode = "200", description = "处理成功", content = @Content(mediaType = "application/json"))
+    @PostMapping("/startDS")
+    public McpResult startDS(@RequestBody UserInfoRequest userInfoRequest) throws InterruptedException, IOException {
+
+        String userId = userInfoRequest.getUserId();
+        String chatId = userInfoRequest.getDbChatId();
+        String userPrompt = userInfoRequest.getUserPrompt();
+        String isNewChat = userInfoRequest.getIsNewChat();
+        String roles = userInfoRequest.getRoles();
+
+
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "deepseek")) {
+            if ("true".equalsIgnoreCase(isNewChat)) {
+                chatId = null;
+            } else if (chatId != null && !chatId.isEmpty()) {
+                logInfo.sendTaskLog("检测到会话ID: " + chatId + "，将继续使用此会话", userId, "DeepSeek");
+            }
+
+            // 初始化页面并发送消息
+            Page page = browserUtil.getOrCreatePage(context);
+
+            // 🔥 优化：设置更合理的超时时间，提高响应速度
+            page.setDefaultTimeout(90000); // 90秒（增加到90秒以减少超时错误）
+
+            // 创建定时截图线程
+            AtomicInteger i = new AtomicInteger(0);
+            ScheduledExecutorService screenshotExecutor = Executors.newSingleThreadScheduledExecutor();
+
+            // 启动定时任务，每6秒执行一次截图，添加错误处理和状态检查
+            ScheduledFuture<?> screenshotFuture = screenshotExecutor.scheduleAtFixedRate(() -> {
+                try {
+                    // 检查页面是否已关闭，避免对已关闭页面进行操作
+                    if (page.isClosed()) {
+                        return;
+                    }
+
+                    // 🔥 优化：移除页面加载检查，减少不必要的延迟
+                    int currentCount = i.getAndIncrement();
+                    try {
+                        // 使用更安全的截图方式
+                        logInfo.sendImgData(page, userId + "DeepSeek执行过程截图" + currentCount, userId);
+                    } catch (Exception e) {
+                        UserLogUtil.sendExceptionLog(userId, "DeepSeek执行过程截图", "startDeepSeek", e, url + "/saveLogInfo");
+                    }
+                } catch (Exception e) {
+                    UserLogUtil.sendExceptionLog(userId, "DeepSeek执行过程截图", "startDeepSeek", e, url + "/saveLogInfo");
+                }
+            }, 1000, 4000, TimeUnit.MILLISECONDS); // 🔥 优化：延迟1秒开始，每4秒执行一次（提高截图频率）
+
+            logInfo.sendTaskLog("开启自动监听任务，持续监听DeepSeek回答中", userId, "DeepSeek");
+
+            // 发送消息并获取回答
+            String copiedText = "";
+            int maxRetries = 3;
+
+            // 重试循环
+            for (int retry = 0; retry < maxRetries; retry++) {
+                try {
+                    if (retry > 0) {
+                        // 刷新页面重新开始
+                        page.reload();
+                        page.waitForLoadState(LoadState.LOAD);
+                        Thread.sleep(2000);
+                    }
+
+                    // 🔥 新增：检测DeepSeek服务器不可用弹窗
+                    try {
+                        // 检查是否有服务器不可用的弹窗或错误信息
+                        String serverUnavailableCheck = (String) page.evaluate("""
+                                    () => {
+                                        // 检查常见的服务器不可用提示
+                                        const errorMessages = [
+                                            '服务器暂时不可用',
+                                            '服务暂时不可用', 
+                                            'Service temporarily unavailable',
+                                            'Server temporarily unavailable',
+                                            '系统繁忙',
+                                            '服务异常',
+                                            '网络异常'
+                                        ];
+                                        
+                                        // 检查页面中是否包含这些错误信息
+                                        const bodyText = document.body.innerText || document.body.textContent || '';
+                                        for (const message of errorMessages) {
+                                            if (bodyText.includes(message)) {
+                                                return message;
+                                            }
+                                        }
+                                        
+                                        // 检查弹窗或模态框
+                                        const modals = document.querySelectorAll('.modal, .dialog, .popup, .alert, [role="dialog"], [role="alert"]');
+                                        for (const modal of modals) {
+                                            const modalText = modal.innerText || modal.textContent || '';
+                                            for (const message of errorMessages) {
+                                                if (modalText.includes(message)) {
+                                                    return message;
+                                                }
+                                            }
+                                        }
+                                        
+                                        return null;
+                                    }
+                                """);
+
+                        if (serverUnavailableCheck != null && !serverUnavailableCheck.equals("null")) {
+
+                            // 安全地关闭截图任务
+                            try {
+                                screenshotFuture.cancel(true);
+                                screenshotExecutor.shutdownNow();
+                            } catch (Exception e) {
+                            }
+
+                            // 直接返回错误信息给前端
+                            String errorMessage = "DeepSeek服务器暂时不可用，请稍后再试";
+                            logInfo.sendTaskLog(errorMessage, userId, "DeepSeek");
+                            logInfo.sendResData(errorMessage, userId, "DeepSeek", "RETURN_DEEPSEEK_RES", "", "");
+
+                            // 保存错误信息到数据库
+                            userInfoRequest.setDraftContent(errorMessage);
+                            userInfoRequest.setAiName("DeepSeek");
+                            userInfoRequest.setShareUrl("");
+                            userInfoRequest.setShareImgUrl("");
+                            RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+
+                            return McpResult.fail(errorMessage, "");
+                        }
+                    } catch (Exception e) {
+                        return McpResult.fail("无法访问DeepSeek服务器", "");
+                    }
+
+                    copiedText = deepSeekUtil.handleDeepSeekAI(page, userPrompt, userId, roles, chatId);
+
+                    if (!copiedText.startsWith("获取内容失败") && !copiedText.isEmpty()) {
+                        break; // 成功获取内容，跳出重试循环
+                    }
+
+                    Thread.sleep(3000); // 等待3秒后重试
+                } catch (Exception e) {
+                    if (retry == maxRetries - 1) {
+                        copiedText = "获取内容失败：多次尝试后仍然失败";
+                        // 不发送技术错误到前端，只记录日志
+                    }
+                    Thread.sleep(2000); // 出错后等待2秒
+                }
+            }
+
+            // 安全地关闭截图任务
+            try {
+                screenshotFuture.cancel(true); // 使用true尝试中断正在执行的任务
+                screenshotExecutor.shutdownNow(); // 立即关闭执行器
+
+                // 等待执行器完全关闭，但最多等待3秒
+                if (!screenshotExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
+                    // 截图任务未能完全关闭
+                }
+            } catch (Exception e) {
+                // 关闭截图任务时出错，不发送到前端
+            }
+
+            // 如果获取内容失败，尝试从页面中提取任何可能的内容
+            if (copiedText.startsWith("获取内容失败") || copiedText.isEmpty()) {
+                try {
+
+                    // 使用JavaScript提取页面上的任何文本内容
+                    Object extractedContent = page.evaluate("""
+                                () => {
+                                    // 尝试查找任何可能包含回复的元素
+                                    const contentElements = document.querySelectorAll('.ds-markdown, .flow-markdown-body, .message-content, .ds-markdown-paragraph');
+                                    if (contentElements.length > 0) {
+                                        // 获取最后一个元素的文本
+                                        const lastElement = contentElements[contentElements.length - 1];
+                                        return lastElement.innerHTML || lastElement.innerText || '';
+                                    }
+
+                                    // 如果找不到特定元素，尝试获取页面上的任何文本
+                                    const bodyText = document.body.innerText;
+                                    if (bodyText && bodyText.length > 50) {
+                                        return bodyText;
+                                    }
+
+                                    return '无法提取内容';
+                                }
+                            """);
+
+                    if (extractedContent != null && !extractedContent.toString().isEmpty() &&
+                            !extractedContent.toString().equals("无法提取内容")) {
+                        copiedText = extractedContent.toString();
+                    }
+                } catch (Exception e) {
+                    return McpResult.fail("无法提取返回内容", "");
+                }
+            }
+
+            // 🔥 优化：获取分享链接，增加超时保护
+            String shareUrl = "";
+            try {
+                // 设置较短的超时时间用于分享操作
+                page.locator("button:has-text('分享')").click(new Locator.ClickOptions().setTimeout(30000));
+                Thread.sleep(1500); // 稍微增加等待时间
+                shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
+                if (shareUrl != null && !shareUrl.trim().isEmpty()) {
+                } else {
+                    shareUrl = page.url();
+                }
+            } catch (Exception e) {
+                // 使用当前页面URL作为备选
+                try {
+                    shareUrl = page.url();
+                } catch (Exception ex) {
+                    shareUrl = "";
+                }
+            }
+
+            String shareImgUrl = "";
+            try {
+                // 使用新的分条截图方法
+                MessageScreenshot screenshotter = new MessageScreenshot();
+                shareImgUrl = screenshotter.captureMessagesAsLongScreenshot(page, uploadUrl, userId);
+            } catch (Exception e) {
+                logInfo.sendTaskLog("DeepSeek导出图片失败: " + e.getMessage(), userId, "DeepSeek");
+                shareImgUrl = "";
+            }
+
+
+            logInfo.sendTaskLog("执行完成", userId, "DeepSeek");
+            logInfo.sendChatData(page, "/chat/([^/?#]+)", userId, "RETURN_DEEPSEEK_CHATID", 1);
+
+            logInfo.sendResData(copiedText, userId, "DeepSeek", "RETURN_DEEPSEEK_RES", shareUrl, shareImgUrl);
+
+            // 保存数据库
+            userInfoRequest.setDraftContent(shareImgUrl);
+            userInfoRequest.setAiName("DeepSeek");
+            userInfoRequest.setShareUrl(shareUrl);
+            userInfoRequest.setShareImgUrl(shareImgUrl);
+            RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+
+
+            return McpResult.success(copiedText, shareImgUrl);
+
+        } catch (Exception e) {
+
+            // 发送用户友好的错误信息，不暴露技术细节
+            String userFriendlyError = "DeepSeek处理出现问题，请稍后重试";
+            logInfo.sendTaskLog(userFriendlyError, userId, "DeepSeek");
+            logInfo.sendResData(userFriendlyError, userId, "DeepSeek", "RETURN_DEEPSEEK_RES", "", "");
+
+            return McpResult.fail(userFriendlyError, "");
+        }
+    }
+
 
     @Operation(summary = "启动豆包AI生成图片", description = "调用豆包AI平台生成内容并抓取结果")
     @ApiResponse(responseCode = "200", description = "处理成功", content = @Content(mediaType = "application/json"))

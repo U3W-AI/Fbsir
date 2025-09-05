@@ -433,16 +433,19 @@ export default {
         yuanbao: false,
         doubao: false,
         baidu: false,
+        deepseek: false,
       },
       accounts: {
         yuanbao: "",
         doubao: "",
         baidu: "",
+        deepseek: "",
       },
       isClick: {
         yuanbao: false,
         doubao: false,
         baidu: false,
+        deepseek: false,
       },
       aiLoginDialogVisible: false,
       currentAiType: "",
@@ -455,6 +458,7 @@ export default {
         yuanbao: true,
         doubao: true,
         baidu: true,
+        deepseek: true,
       },
       resetStatusTimeout: null, // 状态检查超时定时器
 
@@ -490,6 +494,7 @@ export default {
         yuanbao: "腾讯元宝登录",
         doubao: "豆包登录",
         baidu: "百度AI登陆",
+        deepseek: "DeepSeek登录",
       };
       return titles[this.currentAiType] || "登录";
     },
@@ -520,9 +525,12 @@ export default {
         this.isClick.yuanbao = false;
         this.isClick.doubao = false;
         this.isClick.baidu = false,
+        this.isClick.deepseek = false;
+
         this.isLoading.yuanbao = true;
         this.isLoading.doubao = true;
         this.isLoading.baidu = true;
+        this.isLoading.deepseek = true;
         this.initWebSocket(this.userId); // 创建时建立连接
 
         setTimeout(() => {
@@ -559,6 +567,12 @@ export default {
           // 检查百度登录状态
           this.sendMessage({
             type: "PLAY_CHECK_BAIDU_LOGIN",
+            userId: this.userId,
+            corpId: this.corpId,
+          });
+          // 检查DeepSeek登录状态
+          this.sendMessage({
+            type: "PLAY_CHECK_DEEPSEEK_LOGIN",
             userId: this.userId,
             corpId: this.corpId,
           });
@@ -697,6 +711,13 @@ export default {
           corpId: this.corpId,
         });
       }
+      if (type == "deepseek") {
+        this.sendMessage({
+          type: "PLAY_GET_DEEPSEEK_QRCODE",
+          userId: this.userId,
+          corpId: this.corpId,
+        });
+      }
       this.$message({
         message: "正在获取登录二维码...",
         type: "info",
@@ -707,6 +728,7 @@ export default {
         yuanbao: require("@/assets/logo/yuanbao.png"),
         doubao: require("@/assets/logo/doubao.png"),
         baidu: require("@/assets/logo/Baidu.png"),
+        deepseek: require("@/assets/logo/Deepseek.png"),
       };
       return icons[type] || "";
     },
@@ -715,6 +737,7 @@ export default {
         yuanbao: "腾讯元宝",
         doubao: "豆包",
         baidu: "百度",
+        deepseek: "DeepSeek",
       };
       return names[type] || "";
     },
@@ -752,7 +775,8 @@ export default {
       if (
         datastr.includes("RETURN_PC_YB_QRURL") ||
         datastr.includes("RETURN_PC_DB_QRURL") ||
-        datastr.includes("RETURN_PC_BAIDU_QRURL")
+        datastr.includes("RETURN_PC_BAIDU_QRURL") ||
+        datastr.includes("RETURN_PC_DEEPSEEK_QRURL")
       ) {
         if (dataObj.url && dataObj.url.trim() !== "") {
           this.qrCodeUrl = dataObj.url;
@@ -811,7 +835,21 @@ export default {
           this.isClick.baidu = true;
           this.isLoading.baidu = false;
         }
-      } 
+      }else if (datastr.includes("RETURN_DEEPSEEK_STATUS") && dataObj.status != "") {
+        if (!datastr.includes("false")) {
+          this.aiLoginDialogVisible = false;
+          this.aiLoginStatus.deepseek = true;
+          this.accounts.deepseek = dataObj.status;
+          this.isLoading.deepseek = false;
+          this.isClick.deepseek = true; // 检测成功后设为true
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.deepseek && /* !this.isLoading.minimax && */ !this.isLoading.qw && !this.isLoading.metaso /* && !this.isLoading.kimi */) { // 移除Kimi登录状态检测
+            if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
+          }
+        } else {
+          this.isClick.deepseek = true;
+          this.isLoading.deepseek = false;
+        }
+      }
     },
 
     closeWebSocket() {
