@@ -86,26 +86,14 @@
                   </div>
                   <!-- 百度AI选择 -->
                   <div v-else-if="ai.name === '百度AI'" class="button-capability-group">
-                    <!-- <el-button
-                      v-for="capability in ai.capabilities"
-                      :key="capability.value"
-                      size="mini"
-                      :type="getCapabilityType(ai, capability.value)"
-                      :disabled="!ai.enabled"
-                      :plain="getCapabilityPlain(ai, capability.value)"
-                      @click="toggleCapability(ai, capability.value)"
-                      class="capability-button"
-                    >
-                      {{ capability.label }}
-                    </el-button> -->
-                    <el-button size="mini" :type="getCapabilityType(ai, 'deep_search')"
-                      :disabled="!ai.enabled" :plain="getCapabilityPlain(ai, 'deep_search')"
-                      @click="toggleCapability(ai, 'deep_search')" class="capability-button">
+                    <el-button size="mini" :type="getCapabilityType(ai, 'deep_search')" :disabled="!ai.enabled"
+                      :plain="getCapabilityPlain(ai, 'deep_search')" @click="toggleCapability(ai, 'deep_search')"
+                      class="capability-button">
                       深度搜索
                     </el-button>
-                    <el-select :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')"
+                    <!-- <el-select :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')"
                       v-model="ai.selectedModel" placeholder="请选择模型">
-                      <el-option label="不调用模型" value="">
+                      <el-option label="百度AI助手" value="">
                       </el-option>
                       <el-option label="DeepSeek-R1" value="dsr1">
                       </el-option>
@@ -117,7 +105,21 @@
                     联网搜索
                     <el-switch v-model="ai.isWeb" active-color="#13ce66" inactive-color="#ff4949"
                       :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')" class="web-switch">
-                    </el-switch>
+                    </el-switch> -->
+                      <el-dropdown size="mini" :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')" :type="ai.isModel ? 'primary' : 'plain'" @click="ai.isModel = !ai.isModel" split-button trigger="click" :hide-on-click="false"
+                        @command="function (command) { command == ai.selectedModel ? ai.isModel = false : ((ai.selectedModel = command) & (ai.isModel = true)) }">
+                          {{ ai.selectedModel == "dsr1" ? "DeepSeek-R1" : ai.selectedModel == "dsv3" ? "DeepSeek-V3"
+                            : ai.selectedModel == "wenxin" ?"文心 4.5 Turbo": "百度AI助手" }}
+                        <template #dropdown>
+                          <el-dropdown-menu>
+                            <el-dropdown-item command="dsr1">DeepSeek-R1</el-dropdown-item>
+                            <el-dropdown-item command="dsv3">DeepSeek-V3</el-dropdown-item>
+                            <el-dropdown-item command="wenxin">文心 4.5 Turbo</el-dropdown-item>
+                            <span style="font-size: 12px; text-align:center; margin: 0px 0px 0px 10px">联网搜索</span>
+                            <el-switch size="mini" v-model="ai.isWeb" style="zoom: 0.8"></el-switch>
+                          </el-dropdown-menu>
+                        </template>
+                      </el-dropdown>
                   </div>
                   <!-- 其他AI -->
                   <div v-else class="button-capability-group">
@@ -431,7 +433,8 @@
               { label: '深度搜索', value: 'deep_search' },
             ],
             selectedCapabilities: ["deep_search"],
-            selectedModel: '',
+            selectedModel: 'dsr1',
+            isModel: false,
             isWeb: false,
             enabled: true,
             status: 'idle',
@@ -651,7 +654,7 @@
             this.userInfoReq.roles = this.userInfoReq.roles + 'baidu-agent,';
             if(ai.selectedCapabilities.includes("deep_search")) {
               this.userInfoReq.roles = this.userInfoReq.roles + 'baidu-sdss,';
-            } else {
+            } else if(ai.isModel){
               if(ai.isWeb) {
                 this.userInfoReq.roles = this.userInfoReq.roles + 'baidu-web,';
               }
@@ -667,12 +670,12 @@
 
           }
 
-          if (ai.name === "DeepSeek" && ai.enabled) {
+          if(ai.name === "DeepSeek" && ai.enabled) {
             this.userInfoReq.roles = this.userInfoReq.roles + "deepseek,";
-            if (ai.selectedCapabilities.includes("deep_thinking")) {
+            if(ai.selectedCapabilities.includes("deep_thinking")) {
               this.userInfoReq.roles = this.userInfoReq.roles + "ds-sdsk,";
             }
-            if (ai.selectedCapabilities.includes("web_search")) {
+            if(ai.selectedCapabilities.includes("web_search")) {
               this.userInfoReq.roles = this.userInfoReq.roles + "ds-lwss,";
             }
           }
@@ -760,7 +763,8 @@
             // 如果选择了deep-search，则取消其他，反之亦然
             if(capabilityValue === "deep_search" && ai.selectedCapabilities.includes("deep_search")) {
               this.$set(ai, "selectedCapabilities", ["deep_search"]);
-              this.$set(ai, "selectedModel", ''); // 恢复默认模型选择
+
+              this.$set(ai, "isModel", false); // 取消模型选择
               this.$set(ai, "isWeb", false); // 清空联网选择
             } else if(capabilityValue !== "deep_search" && ai.selectedCapabilities.includes("deep_search")) {
               this.$set(ai, "selectedCapabilities", []);
@@ -1409,7 +1413,8 @@
               { label: '深度搜索', value: 'deep_search' },
             ],
             selectedCapabilities: ["deep_search"],
-            selectedModel: '',
+            selectedModel: 'dsr1',
+            isModel: false,
             isWeb: false,
             enabled: true,
             status: 'idle',
@@ -1505,7 +1510,7 @@
       // 根据AI名称获取图片样式
       getImageStyle(aiName) {
         const widthMap = {
-          baidu : "700px",
+          baidu: "700px",
           DeepSeek: "700px",
           豆包: "560px",
           "腾讯元宝T1": "700px",

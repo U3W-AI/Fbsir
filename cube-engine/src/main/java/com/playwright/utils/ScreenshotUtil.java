@@ -2,6 +2,7 @@ package com.playwright.utils;
 
 import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.Download;
+import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,40 @@ public class ScreenshotUtil {
 
     @Value("${cube.uploadurl}")
     public String uploadUrl;
+
+    public String screenshotElementAndUpload(Locator locator, String imageName) throws IOException {
+
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+        try {
+            // 检查页面是否已关闭
+            if (locator.page().isClosed()) {
+                return "";
+            }
+
+            // 🔥 优化：截取全屏截图，增加超时设置
+            locator.screenshot(new Locator.ScreenshotOptions()
+                    .setPath(Paths.get(imageName))
+                    .setTimeout(45000) // 45秒超时，防止长时间等待
+            );
+
+
+            // 上传截图
+            String response = uploadFile(uploadUrl, imageName);
+            JSONObject jsonObject = JSONObject.parseObject(response);
+
+            String url = jsonObject.get("url")+"";
+            Files.delete(Paths.get(imageName));
+            return url;
+        } catch (com.microsoft.playwright.impl.TargetClosedError e) {
+            return "";
+        } catch (com.microsoft.playwright.PlaywrightException e) {
+            return "";
+        } catch (Exception e) {
+            throw e;
+        }
+
+    }
 
     public String screenshotAndUpload(Page page, String imageName) throws IOException {
 
