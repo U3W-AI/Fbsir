@@ -3,7 +3,7 @@
 # 福帮手FBSir：智能原生时代的微信私域运营助手
 ![输入图片说明](docs-img/%E5%AF%B9%E8%AF%9D%E9%9A%90%E5%BD%A2%E5%86%A0%E5%86%9B.jpeg)
 
-版本：0.15A
+版本：0.15A2
 
 文档更新日期：2025年9月5日
 
@@ -21,13 +21,9 @@
 U3W-AI/
 ├── common_deployment_guide.md  [公共环境部署指南](common_deployment_guide.md)
 ├── cube-mini/            # 优立方AI主机控制台小程序端
-│   └── deployment_guide.md  [部署指南](cube-mini/deployment_guide.md)
 ├── cube-admin/           # 优立方AI主机控制台后端
-│   └── deployment_guide.md  [部署指南](cube-admin/deployment_guide.md)
 ├── cube-ui/              # 优立方AI主机控制台前端
-│   └── deployment_guide.md  [部署指南](cube-ui/deployment_guide.md)
 ├── cube-engine/          # 福帮手@优立方AI主机核心服务
-│   └── deployment_guide.md  [部署指南](cube-engine/deployment_guide.md)
 ├── cube-common/          # 公共工具模块
 ├── cube-framework/       # 框架核心模块
 ├── sql/                  # 数据库脚本
@@ -37,19 +33,6 @@ U3W-AI/
 
 **推荐使用：** [🚀 福帮手FBSir 完整部署说明](complete_deployment_guide.md) - **全流程一站式部署指南**
 
----
-
-**单模块部署文档：**
-
-公共环境部署指南：[点击前往](common_deployment_guide.md)
-
-福帮手@优立方AI主机核心服务：[点击前往](cube-engine/deployment_guide.md)
-
-优立方AI主机控制台后端：[点击前往](cube-admin/deployment_guide.md)
-
-优立方AI主机控制台前端：[点击前往](cube-ui/deployment_guide.md)
-
-优立方AI主机控制台小程序端：[点击前往](cube-mini/deployment_guide.md)
 
 ## 快速开始
 
