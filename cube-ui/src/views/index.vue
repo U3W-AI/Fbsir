@@ -493,7 +493,7 @@ export default {
       const titles = {
         yuanbao: "腾讯元宝登录",
         doubao: "豆包登录",
-        baidu: "百度AI登陆",
+        baidu: "百度AI登录",
         deepseek: "DeepSeek登录",
       };
       return titles[this.currentAiType] || "登录";

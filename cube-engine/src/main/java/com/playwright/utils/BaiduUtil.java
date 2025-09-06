@@ -14,10 +14,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -1111,7 +1115,29 @@ public class BaiduUtil {
 
                     // 截图并返回
                     logInfo.sendTaskLog("准备截图二维码", userId, "百度AI");
-                    return screenshotUtil.screenshotAndUpload(page, "getBaiduQrCode.png");
+                    Locator qrCodeArea = page.locator("#TANGRAM__PSP_11__qrcodeContent");
+                    byte[] qrCodeBytes = qrCodeArea.screenshot(new Locator.ScreenshotOptions().setTimeout(45000));
+
+                    BufferedImage inputImage = ImageIO.read(new ByteArrayInputStream(qrCodeBytes));
+
+                    int newWidth = inputImage.getWidth() * 2;
+                    int newHeight = inputImage.getHeight() * 2;
+
+                    // 创建一个新的BufferedImage对象，用于存储放大后的图片
+                    BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D g2d = resizedImage.createGraphics();
+
+                    // 绘制放大后的图片
+                    g2d.drawImage(inputImage, 0, 0, newWidth, newHeight, null);
+                    g2d.dispose();
+
+                    // 保存放大后的图片
+                    ImageIO.write(resizedImage, "png", new File("getBaiduQrCode.png"));
+                    String response = ScreenshotUtil.uploadFile(screenshotUtil.uploadUrl, "getBaiduQrCode.png");
+                    JSONObject jsonObject = JSONObject.parseObject(response);
+                    String url = jsonObject.get("url")+"";
+                    Files.delete(Paths.get("getBaiduQrCode.png"));
+                    return url;
                 } else {
                     logInfo.sendTaskLog("登录按钮文本不匹配: " + buttonText, userId, "百度AI");
                 }
