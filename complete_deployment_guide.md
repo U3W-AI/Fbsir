@@ -254,7 +254,7 @@ java -jar target/U3W.jar
 ![MCP插件配置](docs-img/mcp_plugin_config-1.png)
 
 ### 8.3 导入工作流
-1. 工作流配置文件：[export-deepseek.zip](export-deepseek.zip)
+1. 工作流配置文件：[export-deepseek.zip](work-process/export-deepseek(20250906).zip)
 2. 在元器平台中进入**对话式智能体**的工作流管理页面
 3. *新建* 选择批量导入，上传配置文件(export-deepseek.zip)
 4. 导入成功后，编辑工作流
