@@ -29,10 +29,10 @@ mysql -u root -p
 #### 安装Redis 6.0+
 1. 下载Redis 6.0或更高版本：[Redis官方下载](https://github.com/tporadowski/redis/releases)
 2. 解压到指定目录（例如：`C:\Program Files\Redis`）
-3. 配置Redis：
+3. 配置Redis(示例)：
    - 编辑`redis.windows.conf`文件
-   - 设置密码：`requirepass qwe#123`
-   - 设置端口：`port 26379`
+   - 设置密码：`requirepass 123456`
+   - 设置端口：`port 6379`
 4. 安装并启动Redis服务：
 ```bash
 cd C:\Program Files\Redis
@@ -103,8 +103,8 @@ spring:
 spring:
   redis:
     host: localhost
-    port: 26379
-    password: qwe#123
+    port: 6379
+    password: 123456
 ```
 
 #### 配置文件上传路径
@@ -199,6 +199,14 @@ java -jar target/U3W.jar
    - 点击豆包登录按钮  
    - 扫描返回的二维码
    - 确认登录成功
+4. **登录百度AI**：
+   - 点击豆包登录按钮
+   - 扫描返回的二维码
+   - 确认登录成功
+5. **登录DeepSeek**：
+   - 点击豆包登录按钮
+   - 扫描返回的二维码
+   - 确认登录成功
 
 ![AI登录示例](docs-img/ai_login_example.png)
 
@@ -248,7 +256,7 @@ java -jar target/U3W.jar
 ### 8.3 导入工作流
 1. 工作流配置文件：[export-1756783970.zip](export-1756783970.zip)
 2. 在元器平台中进入**对话式智能体**的工作流管理页面
-3. *新建* 选择批量导入，上传配置文件
+3. *新建* 选择批量导入，上传配置文件(export-deepseek.zip)
 4. 导入成功后，编辑工作流
 
 ### 8.4 修改工作流配置
@@ -339,7 +347,7 @@ java -jar target/U3W.jar
 #### 完成部署验证
 当以下条件全部满足时，表示部署成功：
 - ✅ 前端页面正常显示（账号密码登录）
-- ✅ 元宝和豆包登录成功
+- ✅ 元宝,豆包,百度AI,DeepSeek登录成功
 - ✅ 内网穿透服务正常
 - ✅ 元器账号配置完成
 - ✅ MCP服务正常响应
