@@ -235,6 +235,15 @@ public class WebSocketClientService {
                         }, "获取元宝二维码", userInfoRequest.getUserId());
                     }
 
+                    if(message.contains("AI评分")){
+                        new Thread(() -> {
+                            try {
+                                aigcController.startDBScore(userInfoRequest);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }).start();
+                    }
                     // 处理检查yb登录状态的消息
                     if (message.contains("CHECK_YB_LOGIN")) {
                         concurrencyManager.submitBrowserTask(() -> {
