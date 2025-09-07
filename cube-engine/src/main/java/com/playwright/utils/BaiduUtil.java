@@ -961,54 +961,69 @@ public class BaiduUtil {
         clipboardLockManager.runWithClipboardLock(() -> {
             try {
 
-//                Locator editor = page.locator("div#editor-container");
-//                //检测是否打开了右侧文本编辑框
-//                if (editor.count() > 0) {
-//                    String[] shareSelectors = {
-//                            "i.share-button.cos-icon"
-//                    };
-//
-//                    Locator shareButton = null;
-//                    for (String selector : shareSelectors) {
-//                        Locator temp = editor.locator(selector);
-//                        if (temp.count() > 0) {
-//                            shareButton = temp.last();
-//                            break;
-//                        }
-//                    }
-//
-//                    if (shareButton != null) {
-//                        shareButton.click();
-//                    }
-//                    Thread.sleep(2000);
-//                    String[] copySelectors = {
-//                            "button:has-text('复制链接')",
-//                    };
-//                    Locator copyButton = null;
-//                    for (String selector : copySelectors) {
-//                        Locator temp = page.locator(selector);
-//
-//                        if (temp.count() > 0) {
-//                            copyButton = temp.first();
-//                            break;
-//                        }
-//                    }
-//                    if (copyButton != null) {
-//                        copyButton.click();
-//                        Thread.sleep(2000);
-//
-//                        // 读取剪贴板内容
-//                        shareUrlRef.set((String) page.evaluate("navigator.clipboard.readText()"));
-//                    }
-//                    Thread.sleep(2000);
-//                    return;
-//                }
+                Locator editor = page.locator("div#editor-container");
+                Locator comate = page.locator("div#comate-chat-workspace");
+                //检测是否打开了右侧文本编辑框
+                if (editor.count() > 0) {
+                    String[] shareSelectors = {
+                            "i.share-button.cos-icon"
+                    };
+
+                    Locator shareButton = null;
+                    for (String selector : shareSelectors) {
+                        Locator temp = editor.locator(selector);
+                        if (temp.count() > 0) {
+                            shareButton = temp.last();
+                            break;
+                        }
+                    }
+
+                    if (shareButton != null) {
+                        shareButton.click();
+                    }
+                    Thread.sleep(2000);
+                    String[] copySelectors = {
+                            "button:has-text('复制链接')",
+                    };
+                    Locator copyButton = null;
+                    for (String selector : copySelectors) {
+                        Locator temp = page.locator(selector);
+
+                        if (temp.count() > 0) {
+                            copyButton = temp.first();
+                            break;
+                        }
+                    }
+                    if (copyButton != null) {
+                        copyButton.click();
+                        Thread.sleep(2000);
+
+                        // 读取剪贴板内容
+                        shareUrlRef.set((String) page.evaluate("navigator.clipboard.readText()"));
+                    }
+                    Thread.sleep(2000);
+                    return;
+                } else if (comate.count() > 0) {
+                    Locator downloadButton = page.locator(".cos-icon.cos-icon-download.button_1uqi9_1");
+                    if (downloadButton.count() > 0) {
+                        String url = screenshotUtil.downloadAndUploadFile(page, screenshotUtil.uploadUrl, () -> {
+                            try {
+                                Thread.sleep(2000);
+                                downloadButton.last().click();
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        });
+                        shareUrlRef.set(url);
+                        return;
+                    }
+                }
 
 
                 Locator container = page.locator("div.chat-qa-container").last();
                 Locator directShareButton = container.locator("//i[contains(@class, 'cos-icon') and contains(@class, 'cos-icon-share1')]");
-                //测试用
-                //Locator directShareButton = container.locator("//i[contains(@class, 'nosuchbutton') and contains(@class, 'abcdefg')]");
+//                测试用
+//                Locator directShareButton = container.locator("//i[contains(@class, 'nosuchbutton') and contains(@class, 'abcdefg')]");
                 if (directShareButton.count() > 0) {
                     directShareButton.last().click();
                 }
@@ -1213,8 +1228,20 @@ public class BaiduUtil {
             String shareUrl = getBaiduShareUrl(page, userId);
             String shareImgUrl = "";
 
-
-            if(shareUrl != null && !shareUrl.isEmpty()) {
+            Locator editor = page.locator("div#editor-container");
+            Locator comate = page.locator("div#comate-chat-workspace");
+            //检测是否打开了右侧文本编辑框
+            if (editor.count() > 0) {
+                Locator exitButton = page.locator("i.cos-icon.cos-icon-close.button_AxaRd");
+                if (exitButton.count() > 0) {
+                    exitButton.last().click();
+                }
+            } else if (comate.count() > 0) {
+                Locator exitButton = page.locator("i.cos-icon.cos-icon-close.button_f81z6_14");
+                if (exitButton.count() > 0) {
+                    exitButton.last().click();
+                }
+            } else if (shareUrl != null && !shareUrl.isEmpty()) {
                 String[] shareSelectors = {
                         "button:has-text('分享图片')",
                 };
@@ -1256,6 +1283,7 @@ public class BaiduUtil {
                 Locator element = page.locator("div#conversation-flow-container").last();
                 Locator answer = page.locator("//*[@id=\"1\"]/div/div").last();
 
+                double scrollHeight = ((Number) page.evaluate("(ele) => ele.scrollHeight", element.elementHandle())).doubleValue();
                 double scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
                 double clientHeight = ((Number) page.evaluate("(ele) => ele.clientHeight", element.elementHandle())).doubleValue();
                 // 先悬停在滑动文本框上以便后续滚动
@@ -1266,6 +1294,22 @@ public class BaiduUtil {
                     Thread.sleep(500);
                     scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
                 }
+                //隐藏跳到底部元素
+                if (page.locator("#cs-bottom > div.false.false.cs-scroll-to-bottom-btn").count() > 0) {
+                    try {
+                        page.evaluate("""
+                                    () => {
+                                        const element = document.querySelector('#cs-bottom > div.false.false.cs-scroll-to-bottom-btn');
+                                        element.style.display = 'none';
+                                        element.style.visibility = 'hidden';
+                                    }
+                                """);
+                    } catch (Exception e) {
+                        System.err.println("隐藏跳到底部元素失败: " + e.getMessage());
+                    }
+                }
+
+
                 // 跳过之前的问答
                 Locator containers = page.locator("div.chat-qa-container");
                 for (int i = 0; i < containers.count() - 1; ++i) {
@@ -1274,37 +1318,41 @@ public class BaiduUtil {
                 }
                 // 对最新一次回复截多张图
                 ArrayList<byte[]> images = new ArrayList<>();
-//                double lastScrollTop = -500;
-                scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
-                do{
+                double lastScrollTop = scrollTop;
+                do {
                     images.add(element.screenshot(new Locator.ScreenshotOptions()));
                     Thread.sleep(500);
                     page.mouse().wheel(0, clientHeight);
-//                    lastScrollTop = scrollTop;
-//                    scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
-                }while(page.locator("div.false.cs-scroll-to-bottom-btn").count()>0);
+                    lastScrollTop = scrollTop;
+                    scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
+                } while (clientHeight + scrollTop + 300 < scrollHeight);
                 // 拼接多张截图
                 BufferedImage firstImage = ImageIO.read(new ByteArrayInputStream(images.get(0)));
                 int width = firstImage.getWidth();
                 int totalHeight = 0;
 
                 // 计算总高度
-                for (byte[] image : images) {
-                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(image));
+                for (int i=0;i<images.size()-1;++i) {
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
                     totalHeight += img.getHeight();
                 }
+                totalHeight += scrollTop-lastScrollTop;
 
                 // 创建一个新的 BufferedImage，用于拼接
                 BufferedImage result = new BufferedImage(width, totalHeight, BufferedImage.TYPE_INT_ARGB);
                 int currentHeight = 0;
 
                 // 按顺序拼接图片
-                for (byte[] image : images) {
-                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(image));
+                for (int i = 0; i < images.size() - 1; ++i) {
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
                     result.getGraphics().drawImage(img, 0, currentHeight, null);
                     currentHeight += img.getHeight();
                 }
-
+                // 最后一张图特殊处理，需要裁剪
+                BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(images.size()-1)));
+                img = img.getSubimage(0,(int)clientHeight-((int)scrollTop-(int)lastScrollTop),img.getWidth(),(int)scrollTop-(int)lastScrollTop);
+                result.getGraphics().drawImage(img, 0, currentHeight, null);
+                currentHeight += img.getHeight();
                 // 将结果图片转换为 byte[] 数组
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 ImageIO.write(result, "png", baos);
