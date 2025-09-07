@@ -111,8 +111,8 @@ public class ScreenshotUtil {
         } else if (filePath.toLowerCase().endsWith(".pdf")) {
             mimeType = "application/pdf";
         } else {
-            // 默认二进制流
-            mimeType = "application/pdf";
+            // 默认纯文本
+            mimeType = "text/plain";
         }
 
         // 构建 Multipart 请求体
@@ -151,9 +151,7 @@ public class ScreenshotUtil {
             if (page.isClosed()) {
                 return "";
             }
-
         Download download = page.waitForDownload(downloadTrigger);
-
         Path tmpPath = download.path();
         if (tmpPath == null) {
             throw new IOException("下载文件失败，路径为空");
@@ -169,7 +167,6 @@ public class ScreenshotUtil {
         String uuidFileName = UUID.randomUUID().toString() + extension;
         Path renamedFilePath = tmpPath.resolveSibling(uuidFileName);
         Files.move(tmpPath, renamedFilePath, StandardCopyOption.REPLACE_EXISTING);
-
         String result = uploadFile(uploadUrl, renamedFilePath.toString());
         Files.deleteIfExists(renamedFilePath);
 
