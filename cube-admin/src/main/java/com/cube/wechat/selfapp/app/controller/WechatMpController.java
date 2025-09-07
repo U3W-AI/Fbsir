@@ -33,7 +33,7 @@ public class WechatMpController {
 
     @PostMapping("/getMaterial")
     public ResultBody getMaterial(@RequestBody Map map) {
-        return wechatMpService.getImgMaterial(map);
+        return wechatMpService.getMaterial(map);
     }
 
     @PostMapping("/uploadMaterial")

@@ -123,6 +123,7 @@ public class UserInfoController extends BaseController {
     public ResultBody pushAutoOffice(@RequestBody Map map){
         return userInfoService.pushAutoOneOffice(map);
     }
+
     @GetMapping("/getViewAutoOffice")
     public ResultBody getViewAutoOffice(String taskId){
         return userInfoService.pushViewAutoOffice(taskId);

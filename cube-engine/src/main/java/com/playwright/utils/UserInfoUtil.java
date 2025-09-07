@@ -1,5 +1,6 @@
 package com.playwright.utils;
 
+import com.playwright.constants.WxExceptionConstants;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author 孔德权
@@ -53,6 +56,17 @@ public class UserInfoUtil {
             }
         } catch (Exception e) {
             throw e;
+        }
+    }
+
+    public String getUnionIdByUserId(String userId) throws Exception{
+        try {
+            String getUrl = url + "/getUnionId";
+            Map<String, Object> map = new HashMap<>();
+            map.put("userId", userId);
+            return HttpUtil.doGet(getUrl, map);
+        } catch (Exception e) {
+            throw new RuntimeException(WxExceptionConstants.WX_AUTH_EXCEPTION);
         }
     }
 }

@@ -139,8 +139,12 @@ public class CubeMcp {
         try {
             String roles = userInfoRequest.getRoles();
             String unionId = userInfoRequest.getUnionId();
-            String userId = null;
-            if (unionId != null && !unionId.isEmpty()) {
+            String userId = userInfoRequest.getUserId();
+            if(userId != null && unionId == null) {
+                unionId  = userInfoUtil.getUnionIdByUserId(userId);
+                userInfoRequest.setUnionId(unionId);
+            }
+            if (unionId != null && !unionId.isEmpty() && userId == null) {
                 userId = userInfoUtil.getUserIdByUnionId(unionId);
             }
             if (userId == null) {
@@ -161,24 +165,30 @@ public class CubeMcp {
                 promptUrl = matcher.group();
             }
             String content = null;
-            if(promptUrl != null) {
-                String getContentPrompt = promptUrl + " 获取以上链接内容";
-//                无需深度思考和联网搜索
-                userInfoRequest.setRoles("yb-deepseek-pt, znpb");
-                userInfoRequest.setUserPrompt(getContentPrompt);
-                McpResult mcpResult = aigcController.startYBOffice(userInfoRequest);
-                content = mcpResult.getResult();
-                if(mcpResult.getCode() != 200 || content == null || content.isEmpty()) {
-                    return McpResult.fail("获取链接内容失败,请稍后重试", "");
-                }
-                userInfoRequest.setUserPrompt("文本内容: `" + content + "`");
-            } else {
-                userInfoRequest.setUserPrompt("文本内容: `" + prompt + "`");
-            }
             // 获取提示词
             String json = HttpUtil.doGet(url.substring(0, url.lastIndexOf("/")) + "/media/getCallWord/wechat_layout", null);
             JSONObject jsonObject = JSONObject.parseObject(json);
             String znpbPrompt = jsonObject.get("data").toString();
+
+            if(prompt.startsWith(znpbPrompt.substring(0, 10))) {
+                prompt = prompt.substring(znpbPrompt.length());
+                userInfoRequest.setUserPrompt("文本内容: `" + prompt + "`");
+            } else{
+                if(promptUrl != null) {
+                    String getContentPrompt = promptUrl + " 获取以上链接内容";
+//                无需深度思考和联网搜索
+                    userInfoRequest.setRoles("yb-deepseek-pt, znpb");
+                    userInfoRequest.setUserPrompt(getContentPrompt);
+                    McpResult mcpResult = aigcController.startYBOffice(userInfoRequest);
+                    content = mcpResult.getResult();
+                    if(mcpResult.getCode() != 200 || content == null || content.isEmpty()) {
+                        return McpResult.fail("获取链接内容失败,请稍后重试", "");
+                    }
+                    userInfoRequest.setUserPrompt("文本内容: `" + content + "`");
+                } else {
+                    userInfoRequest.setUserPrompt("文本内容: `" + prompt + "`");
+                }
+            }
 
             // 获取图片信息
             McpResult mcp = getMaterial(userInfoRequest);

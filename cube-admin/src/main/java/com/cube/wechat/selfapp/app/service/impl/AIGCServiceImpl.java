@@ -121,4 +121,9 @@ public class AIGCServiceImpl implements AIGCService {
         aigcMapper.savePlayWrightTaskData(list);
         return ResultBody.success("成功");
     }
+
+    @Override
+    public String getUnionIdByUserId(String userId) {
+        return userInfoMapper.getUnionIdByUserId(userId);
+    }
 }

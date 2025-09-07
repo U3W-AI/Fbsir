@@ -535,5 +535,9 @@ public class AIGCController extends BaseController {
         return aigcService.getUserIdByUnionId(unionId);
     }
 
+    @GetMapping("getUnionId")
+    public String getUnionIdByUserId(String userId)  {
+        return aigcService.getUnionIdByUserId(userId);
+    }
 
 }

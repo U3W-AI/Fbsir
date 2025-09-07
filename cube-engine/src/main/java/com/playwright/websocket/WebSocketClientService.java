@@ -10,11 +10,14 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.playwright.controller.*;
 import com.playwright.entity.UserInfoRequest;
+import com.playwright.mcp.CubeMcp;
 import com.playwright.utils.BrowserConcurrencyManager;
 import com.playwright.utils.BrowserTaskWrapper;
 import com.playwright.utils.SpringContextUtils;
+import lombok.RequiredArgsConstructor;
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -92,7 +95,7 @@ public class WebSocketClientService {
                     UserInfoRequest userInfoRequest = JSONObject.parseObject(message, UserInfoRequest.class);
                     BrowserConcurrencyManager concurrencyManager = SpringContextUtils.getBean(BrowserConcurrencyManager.class);
                     BrowserTaskWrapper taskWrapper = SpringContextUtils.getBean(BrowserTaskWrapper.class);
-                    
+                    CubeMcp cubeMcp = SpringContextUtils.getBean(CubeMcp.class);
                     // 打印当前并发状态
                     taskWrapper.printStatus();
 
@@ -188,7 +191,8 @@ public class WebSocketClientService {
                     if(message.contains("AI排版")){
                         concurrencyManager.submitBrowserTask(() -> {
                             try {
-                                aigcController.startYBOffice(userInfoRequest);
+//                                aigcController.startYBOffice(userInfoRequest);
+                                cubeMcp.publishToOffice(userInfoRequest);
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
