@@ -1326,37 +1326,42 @@ public class BaiduUtil {
                     lastScrollTop = scrollTop;
                     scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
                 } while (clientHeight + scrollTop + 300 < scrollHeight);
-                // 拼接多张截图
-                BufferedImage firstImage = ImageIO.read(new ByteArrayInputStream(images.get(0)));
-                int width = firstImage.getWidth();
-                int totalHeight = 0;
+                byte[] concatenatedImageBytes = null;
+                if(images.size() == 1){
+                    concatenatedImageBytes = images.get(0);
+                }else {
+                    // 拼接多张截图
+                    BufferedImage firstImage = ImageIO.read(new ByteArrayInputStream(images.get(0)));
+                    int width = firstImage.getWidth();
+                    int totalHeight = 0;
 
-                // 计算总高度
-                for (int i=0;i<images.size()-1;++i) {
-                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
-                    totalHeight += img.getHeight();
-                }
-                totalHeight += scrollTop-lastScrollTop;
+                    // 计算总高度
+                    for (int i = 0; i < images.size() - 1; ++i) {
+                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
+                        totalHeight += img.getHeight();
+                    }
+                    totalHeight += scrollTop - lastScrollTop;
 
-                // 创建一个新的 BufferedImage，用于拼接
-                BufferedImage result = new BufferedImage(width, totalHeight, BufferedImage.TYPE_INT_ARGB);
-                int currentHeight = 0;
+                    // 创建一个新的 BufferedImage，用于拼接
+                    BufferedImage result = new BufferedImage(width, totalHeight, BufferedImage.TYPE_INT_ARGB);
+                    int currentHeight = 0;
 
-                // 按顺序拼接图片
-                for (int i = 0; i < images.size() - 1; ++i) {
-                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
+                    // 按顺序拼接图片
+                    for (int i = 0; i < images.size() - 1; ++i) {
+                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
+                        result.getGraphics().drawImage(img, 0, currentHeight, null);
+                        currentHeight += img.getHeight();
+                    }
+                    // 最后一张图特殊处理，需要裁剪
+                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(images.size() - 1)));
+                    img = img.getSubimage(0, (int) clientHeight - ((int) scrollTop - (int) lastScrollTop), img.getWidth(), (int) scrollTop - (int) lastScrollTop);
                     result.getGraphics().drawImage(img, 0, currentHeight, null);
                     currentHeight += img.getHeight();
+                    // 将结果图片转换为 byte[] 数组
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    ImageIO.write(result, "png", baos);
+                    concatenatedImageBytes = baos.toByteArray();
                 }
-                // 最后一张图特殊处理，需要裁剪
-                BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(images.size()-1)));
-                img = img.getSubimage(0,(int)clientHeight-((int)scrollTop-(int)lastScrollTop),img.getWidth(),(int)scrollTop-(int)lastScrollTop);
-                result.getGraphics().drawImage(img, 0, currentHeight, null);
-                currentHeight += img.getHeight();
-                // 将结果图片转换为 byte[] 数组
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(result, "png", baos);
-                byte[] concatenatedImageBytes = baos.toByteArray();
 
                 String filepath = userId + "百度AI合成截图.png";
 
