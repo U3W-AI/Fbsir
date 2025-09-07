@@ -28,4 +28,6 @@ public interface AIGCService {
 
     String getUserIdByUnionId(String unionId);
 
+    String getUnionIdByUserId(String userId);
+
 }

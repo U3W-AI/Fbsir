@@ -77,7 +77,7 @@ public class DeepSeekUtil {
                 // 等待侧边栏关闭按钮出现并点击
                 ElementHandle closeButton = page.waitForSelector(
                         "div[class*='_4f3769f']",
-                        new Page.WaitForSelectorOptions().setTimeout(5000));
+                        new Page.WaitForSelectorOptions().setTimeout(2000));
 
                 if (closeButton != null) {
                     closeButton.click(new ElementHandle.ClickOptions().setTimeout(30000));
@@ -146,13 +146,13 @@ public class DeepSeekUtil {
      * @param screenshotUtil 截图工具
      * @return 二维码截图URL
      */
-    public String waitAndGetQRCode(Page page, String userId, ScreenshotUtil screenshotUtil) throws IOException {
+    public String waitAndGetQRCode(Page page, String userId, ScreenshotUtil screenshotUtil) throws Exception {
         try {
             logInfo.sendTaskLog("正在获取DeepSeek登录二维码", userId, "DeepSeek");
 
             // 导航到DeepSeek登录页面，启用等待直到网络空闲
             page.navigate("https://chat.deepseek.com/");
-            page.waitForLoadState(LoadState.NETWORKIDLE); // 网络空闲时即认为加载完成，比默认更快
+            page.waitForLoadState();
 
             // 直接截图当前页面（包含登录按钮）
             String url = screenshotUtil.screenshotAndUpload(page, "checkDeepSeekLogin.png");

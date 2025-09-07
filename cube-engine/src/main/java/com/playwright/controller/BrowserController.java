@@ -34,7 +34,7 @@ public class BrowserController {
     private ScreenshotUtil screenshotUtil;
 
     @Autowired
-    private  WebSocketClientService webSocketClientService;
+    private WebSocketClientService webSocketClientService;
 
     @Value("${cube.url}")
     private String logUrl;
@@ -57,6 +57,7 @@ public class BrowserController {
 
     /**
      * 检查DeepSeek登录状态
+     *
      * @param userId 用户唯一标识
      * @return 登录状态："false"表示未登录，手机号表示已登录
      */
@@ -71,25 +72,13 @@ public class BrowserController {
             page.waitForLoadState();
             page.waitForTimeout(1500); // 额外等待1.5秒确保页面完全渲染
 
-            // 多次尝试检测登录状态，最多尝试3次
-            for (int attempt = 0; attempt < 3; attempt++) {
-                // 先使用工具类方法检测
-                String loginStatus = deepSeekUtil.checkLoginStatus(page, false);
+            // 先使用工具类方法检测
+            String loginStatus = deepSeekUtil.checkLoginStatus(page, false);
 
-                // 如果检测到已登录，直接返回
-                if (!"false".equals(loginStatus)) {
-                    logMsgUtil.sendTaskLog("DeepSeek已登录，用户: " + loginStatus, userId, "DeepSeek");
-                    return loginStatus;
-                }
-
-                // 如果当前尝试失败，但还有更多尝试，等待后重试
-                if (attempt < 2) {
-                    page.waitForTimeout(1000);
-                    // 刷新页面重试
-                    page.reload();
-                    page.waitForLoadState();
-                    page.waitForTimeout(1500);
-                }
+            // 如果检测到已登录，直接返回
+            if (!"false".equals(loginStatus)) {
+                logMsgUtil.sendTaskLog("DeepSeek已登录，用户: " + loginStatus, userId, "DeepSeek");
+                return loginStatus;
             }
 
             // 所有尝试都失败，返回未登录状态
@@ -101,12 +90,13 @@ public class BrowserController {
 
     /**
      * 获取DeepSeek登录二维码
+     *
      * @param userId 用户唯一标识
      * @return 二维码图片URL 或 "false"表示失败
      */
     @Operation(summary = "获取DeepSeek登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
     @GetMapping("/getDSQrCode")
-    public String getDSQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException, IOException {
+    public String getDSQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws Exception, IOException {
         try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "deepseek")) {
             Page page = browserUtil.getOrCreatePage(context);
 
@@ -185,15 +175,16 @@ public class BrowserController {
 
     /**
      * 检查元宝主站登录状态
+     *
      * @param userId 用户唯一标识
      * @return 登录状态："false"表示未登录，手机号表示已登录
      */
     @Operation(summary = "检查元宝登录状态", description = "返回手机号表示已登录，false 表示未登录")
     @GetMapping("/checkLogin")
-    public String checkYBLogin(@Parameter(description = "用户唯一标识")  @RequestParam("userId") String userId) throws InterruptedException {
+    public String checkYBLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
         try {
 //            加锁，同一个用户只能有一个检查
-            if((loginMap.get(userId) == null || loginMap.get(userId).contains("未登录")) && lockMap.get(userId) == null) {
+            if ((loginMap.get(userId) == null || loginMap.get(userId).contains("未登录")) && lockMap.get(userId) == null) {
                 loginMap.remove(userId);
                 lockMap.put(userId, 1);
                 UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
@@ -221,9 +212,9 @@ public class BrowserController {
             } else {
                 log.info("已有其他线程检测,等待登录状态变化");
                 // 等待其他线程检测登录状态
-                for(int i = 0; i < 10; i++) {
-                    if(loginMap.get(userId) != null) {
-                        if(loginMap.get(userId).contains("未登录")) {
+                for (int i = 0; i < 10; i++) {
+                    if (loginMap.get(userId) != null) {
+                        if (loginMap.get(userId).contains("未登录")) {
                             log.info("检测到未登录");
                             return "false";
                         } else {
@@ -242,11 +233,9 @@ public class BrowserController {
     }
 
 
-
-
-
     /**
      * 获取代理版元宝登录二维码
+     *
      * @param userId 用户唯一标识
      * @return 二维码图片URL 或 "false"表示失败
      */
@@ -264,36 +253,36 @@ public class BrowserController {
             page.locator("//span[contains(text(),'登录')]").click();
             Thread.sleep(4000);
             boolean isLogin = false;
-            String url = screenshotUtil.screenshotAndUpload(page,"checkYBLogin.png");
+            String url = screenshotUtil.screenshotAndUpload(page, "checkYBLogin.png");
             JSONObject jsonObject = new JSONObject();
-            jsonObject.put("url",url);
-            jsonObject.put("userId",userId);
-            jsonObject.put("type","RETURN_PC_YB_QRURL");
+            jsonObject.put("url", url);
+            jsonObject.put("userId", userId);
+            jsonObject.put("type", "RETURN_PC_YB_QRURL");
             webSocketClientService.sendMessage(jsonObject.toJSONString());
             Locator phone = page.locator("//p[@class='nick-info-name']");
             String phoneText = phone.textContent();
-            for(int i = 0; i < 6; i++) {
+            for (int i = 0; i < 6; i++) {
 //                每十秒刷新一次
-                if(phoneText.contains("未登录")) {
+                if (phoneText.contains("未登录")) {
                     Thread.sleep(10000);
-                    url = screenshotUtil.screenshotAndUpload(page,"checkYBLogin.png");
-                    jsonObject.put("url",url);
+                    url = screenshotUtil.screenshotAndUpload(page, "checkYBLogin.png");
+                    jsonObject.put("url", url);
                     webSocketClientService.sendMessage(jsonObject.toJSONString());
                 } else {
                     break;
                 }
                 phoneText = phone.textContent();
             }
-            if(phone.count()>0){
+            if (phone.count() > 0) {
                 JSONObject jsonObjectTwo = new JSONObject();
-                if(phoneText.contains("未登录")) {
-                    jsonObjectTwo.put("status","false");
+                if (phoneText.contains("未登录")) {
+                    jsonObjectTwo.put("status", "false");
                 } else {
                     isLogin = true;
-                    jsonObjectTwo.put("status",phoneText);
+                    jsonObjectTwo.put("status", phoneText);
                 }
-                jsonObjectTwo.put("userId",userId);
-                jsonObjectTwo.put("type","RETURN_YB_STATUS");
+                jsonObjectTwo.put("userId", userId);
+                jsonObjectTwo.put("type", "RETURN_YB_STATUS");
                 webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
             }
             return isLogin ? phoneText : "false";
@@ -305,13 +294,14 @@ public class BrowserController {
 
     /**
      * 检查豆包登录状态
+     *
      * @param userId 用户唯一标识
      * @return 登录状态："false"表示未登录，手机号表示已登录
      */
     @Operation(summary = "检查豆包登录状态", description = "返回手机号表示已登录，false 表示未登录")
     @GetMapping("/checkDBLogin")
     public String checkDBLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"db")) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "db")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://www.doubao.com/chat/");
             Thread.sleep(5000);
@@ -326,10 +316,10 @@ public class BrowserController {
                 page.locator("[data-testid=\"chat_header_setting_button\"]").click();
                 Thread.sleep(500);
                 Locator phone = page.locator(".nickName-cIcGuG");
-                if(phone.count()>0){
+                if (phone.count() > 0) {
                     String phoneText = phone.textContent();
                     return phoneText;
-                }else{
+                } else {
                     return "false";
                 }
             }
@@ -340,13 +330,14 @@ public class BrowserController {
 
     /**
      * 获取豆包登录二维码
+     *
      * @param userId 用户唯一标识
      * @return 二维码图片URL 或 "false"表示失败
      */
     @Operation(summary = "获取豆包登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
     @GetMapping("/getDBQrCode")
     public String getDBQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException, IOException {
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"db")) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "db")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://www.doubao.com/chat/");
             Locator locator = page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/div/main/div/div/div[1]/div/div/div/div[2]/div/button");
@@ -356,12 +347,12 @@ public class BrowserController {
                 page.locator("[data-testid='qrcode_switcher']").evaluate("el => el.click()");
 
                 Thread.sleep(3000);
-                String url = screenshotUtil.screenshotAndUpload(page,"checkDBLogin.png");
+                String url = screenshotUtil.screenshotAndUpload(page, "checkDBLogin.png");
 
                 JSONObject jsonObject = new JSONObject();
-                jsonObject.put("url",url);
-                jsonObject.put("userId",userId);
-                jsonObject.put("type","RETURN_PC_DB_QRURL");
+                jsonObject.put("url", url);
+                jsonObject.put("userId", userId);
+                jsonObject.put("type", "RETURN_PC_DB_QRURL");
                 webSocketClientService.sendMessage(jsonObject.toJSONString());
                 Locator login = page.getByText("登录成功");
                 login.waitFor(new Locator.WaitForOptions().setTimeout(60000));
@@ -371,12 +362,12 @@ public class BrowserController {
                 page.locator("[data-testid=\"chat_header_setting_button\"]").click();
                 Thread.sleep(1000);
                 Locator phone = page.locator(".nickName-cIcGuG");
-                if(phone.count()>0){
+                if (phone.count() > 0) {
                     String phoneText = phone.textContent();
                     JSONObject jsonObjectTwo = new JSONObject();
-                    jsonObjectTwo.put("status",phoneText);
-                    jsonObjectTwo.put("userId",userId);
-                    jsonObjectTwo.put("type","RETURN_DB_STATUS");
+                    jsonObjectTwo.put("status", phoneText);
+                    jsonObjectTwo.put("userId", userId);
+                    jsonObjectTwo.put("type", "RETURN_DB_STATUS");
                     webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
                 }
             }
@@ -392,7 +383,7 @@ public class BrowserController {
     @Operation(summary = "退出腾讯元宝登录状态", description = "执行退出操作，返回true表示成功")
     @GetMapping("/loginOut")
     public boolean loginOut(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"yb")) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "yb")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://yuanbao.tencent.com/chat/naQivTmsDa");
             page.click("span.icon-yb-setting");
@@ -427,6 +418,7 @@ public class BrowserController {
 
     /**
      * 获取百度登录二维码
+     *
      * @param userId
      */
     @Operation(summary = "获取百度登录二维码", description = "返回二维码截图 URL 或 false 表示失败")

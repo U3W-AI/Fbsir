@@ -27,7 +27,7 @@ public interface WechatMpService {
      * @return
      */
 
-    ResultBody getImgMaterial(Map map);
+    ResultBody getMaterial(Map map);
 
     /**
      * 通过url上传图片素材

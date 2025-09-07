@@ -36,4 +36,5 @@ public interface AIGCMapper {
 
     int saveLogInfo(Map map);
 
+
 }

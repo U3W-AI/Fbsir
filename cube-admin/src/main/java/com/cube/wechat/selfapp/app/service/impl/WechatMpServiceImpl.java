@@ -76,7 +76,7 @@ public class WechatMpServiceImpl implements WechatMpService {
     }
 
     @Override
-    public ResultBody getImgMaterial(Map map) {
+    public ResultBody getMaterial(Map map) {
         try {
             String unionId = null;
             String type = null;
