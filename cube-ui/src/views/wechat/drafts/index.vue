@@ -101,6 +101,7 @@
                 style="max-width: 100%; height: auto;"
               />
             </div>
+            <div class="preview-content" v-else>{{ extractPlainText(selectedModel.preview) }}</div>
         </div>
         <div class="modal-footer">
           <div class="response-time-footer">{{ selectedModel.responseTime }}</div>
