@@ -315,7 +315,7 @@ public class BaiduUtil {
             // 添加获取结果截图
             logInfo.sendImgData(page, userId + "百度对话AI生成完成", userId);
 
-            return formatBaiduContent(content);
+            return content;
 
         } catch (Exception e) {
             logInfo.sendTaskLog("百度对话AI处理异常", userId, "百度AI");
@@ -751,11 +751,44 @@ public class BaiduUtil {
 //            logInfo.sendTaskLog("内容提取完成", userId, "百度AI");
 //            return content.toString();
 
+            String content = "本次回复无文本内容";
+            Locator editor = page.locator("div#editor-container");
+            Locator comate = page.locator("div#comate-chat-workspace");
+            if(editor.count()>0){
+                Locator copyButton = page.locator("i.cos-icon.cos-icon-copy.button_AxaRd");
+                if(copyButton.count()>0){
+                    copyButton.click();
+                    Thread.sleep(1000);
+                    content = (String) page.evaluate("navigator.clipboard.readText()");
+                }
+            }else if(comate.count()>0){
+                Locator copyButton = page.locator("i.cos-icon.cos-icon-copy.button_f81z6_14");
+                if(copyButton.count()>0){
+                    copyButton.click();
+                    Thread.sleep(1000);
+                    content = (String) page.evaluate("navigator.clipboard.readText()");
+                }
+            }else{
+
+                Locator locator = page.locator("div.chat-qa-container");
+                Locator element = locator.last().locator(".answer-box.last-answer-box");
+                Locator copyButton = element.locator("i.cos-icon.cos-icon-copy.icon_1nicr_12").last();
+                // 百度AI无法分享的组件也有分享按钮只是不可见，不可用
+                if(copyButton.count()>0){
+                    if(copyButton.isVisible()){
+                        copyButton.click();
+                        Thread.sleep(1000);
+                        content = (String) page.evaluate("navigator.clipboard.readText()");
+                    }
+                }
+
+            }
+            return content;
+
         } catch (Exception e) {
             logInfo.sendTaskLog("内容提取失败", userId, "百度AI");
             throw e;
         }
-        return "百度AI调用成功";
     }
 
     /**
@@ -1291,7 +1324,7 @@ public class BaiduUtil {
                 // 先滚动到页面顶部以便定位
                 while (scrollTop > 5) {
                     page.mouse().wheel(0, -clientHeight);
-                    Thread.sleep(500);
+                    Thread.sleep(100);
                     scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
                 }
                 //隐藏跳到底部元素
@@ -1316,16 +1349,29 @@ public class BaiduUtil {
                     double containerHeight = ((Number) page.evaluate("(ele) => ele.clientHeight", containers.nth(i).elementHandle())).doubleValue();
                     page.mouse().wheel(0, containerHeight);
                 }
+                Thread.sleep(2000);
                 // 对最新一次回复截多张图
                 ArrayList<byte[]> images = new ArrayList<>();
-                double lastScrollTop = scrollTop;
-                do {
+//                double lastScrollTop = scrollTop;
+//                while (clientHeight + scrollTop + 300 < scrollHeight) {
+//                    Thread.sleep(500);
+//                    lastScrollTop = scrollTop;
+//                    page.mouse().wheel(0, clientHeight);
+//                    scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
+//                    images.add(element.screenshot(new Locator.ScreenshotOptions()));
+//                }
+                int lastHeight = 0;
+                double lastScrollTop = -250;
+                scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
+                while (scrollTop - lastScrollTop > 200) {
                     images.add(element.screenshot(new Locator.ScreenshotOptions()));
+                    lastHeight=(int)scrollTop - (int)lastScrollTop;
                     Thread.sleep(500);
-                    page.mouse().wheel(0, clientHeight);
                     lastScrollTop = scrollTop;
+                    page.mouse().wheel(0, clientHeight);
+                    Thread.sleep(1500);
                     scrollTop = ((Number) page.evaluate("(ele) => ele.scrollTop", element.elementHandle())).doubleValue();
-                } while (clientHeight + scrollTop + 300 < scrollHeight);
+                }
                 byte[] concatenatedImageBytes = null;
                 if(images.size() == 1){
                     concatenatedImageBytes = images.get(0);
@@ -1340,7 +1386,7 @@ public class BaiduUtil {
                         BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(i)));
                         totalHeight += img.getHeight();
                     }
-                    totalHeight += scrollTop - lastScrollTop;
+                    totalHeight += lastHeight;
 
                     // 创建一个新的 BufferedImage，用于拼接
                     BufferedImage result = new BufferedImage(width, totalHeight, BufferedImage.TYPE_INT_ARGB);
@@ -1353,10 +1399,10 @@ public class BaiduUtil {
                         currentHeight += img.getHeight();
                     }
                     // 最后一张图特殊处理，需要裁剪
-                    BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(images.size() - 1)));
-                    img = img.getSubimage(0, (int) clientHeight - ((int) scrollTop - (int) lastScrollTop), img.getWidth(), (int) scrollTop - (int) lastScrollTop);
-                    result.getGraphics().drawImage(img, 0, currentHeight, null);
-                    currentHeight += img.getHeight();
+                        BufferedImage img = ImageIO.read(new ByteArrayInputStream(images.get(images.size() - 1)));
+                        img = img.getSubimage(0, (int)Math.max(0,clientHeight-lastHeight), img.getWidth(), (int)Math.min(lastHeight,img.getHeight()));
+                        result.getGraphics().drawImage(img, 0, currentHeight, null);
+                        currentHeight += img.getHeight();
                     // 将结果图片转换为 byte[] 数组
                     ByteArrayOutputStream baos = new ByteArrayOutputStream();
                     ImageIO.write(result, "png", baos);
