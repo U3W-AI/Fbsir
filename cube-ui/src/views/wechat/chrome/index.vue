@@ -109,7 +109,7 @@
                       <el-dropdown size="mini" :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')" :type="ai.isModel ? 'primary' : 'plain'" @click="ai.isModel = !ai.isModel" split-button trigger="click" :hide-on-click="false"
                         @command="function (command) { command == ai.selectedModel ? ai.isModel = false : ((ai.selectedModel = command) & (ai.isModel = true)) }">
                           {{ ai.selectedModel == "dsr1" ? "DeepSeek-R1" : ai.selectedModel == "dsv3" ? "DeepSeek-V3"
-                            : ai.selectedModel == "wenxin" ?"文心4.5Turbo": "百度AI助手" }}
+                           : ai.selectedModel == "wenxin" ?"文心4.5Turbo": "百度AI助手" }}
                         <template #dropdown>
                           <el-dropdown-menu>
                             <el-dropdown-item command="dsr1">DeepSeek-R1</el-dropdown-item>
@@ -1606,7 +1606,7 @@
             userId: this.userId,
             corpId: this.corpId,
             userPrompt: this.layoutPrompt,
-            roles: "",
+            roles: "znpb-ds,yb-deepseek-pt,yb-deepseek-sdsk,yb-deepseek-lwss,",
             selectedMedia: "wechat",
           },
         };

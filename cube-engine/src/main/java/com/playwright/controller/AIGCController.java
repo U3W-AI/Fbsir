@@ -12,6 +12,7 @@ import com.playwright.websocket.WebSocketClientService;
 import com.vladsch.flexmark.util.sequence.builder.tree.SegmentTree;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -211,6 +212,163 @@ public class AIGCController {
         }
     }
 
+    @Operation(summary = "豆包智能评分", description = "调用豆包平台对内容进行评分并返回评分结果")
+    @ApiResponse(responseCode = "200", description = "处理成功", content = @Content(mediaType = "application/json"))
+    @PostMapping("/startDBScore")
+    public McpResult startDBScore(@io.swagger.v3.oas.annotations.parameters.RequestBody(description = "用户信息请求体", required = true,
+            content = @Content(schema = @Schema(implementation = UserInfoRequest.class))) @RequestBody UserInfoRequest userInfoRequest) throws IOException, InterruptedException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userInfoRequest.getUserId(), "db")) {
+
+            // 初始化变量
+            String userId = userInfoRequest.getUserId();
+            String dbchatId = userInfoRequest.getDbChatId();
+            logInfo.sendTaskLog("智能评分准备就绪，正在打开页面", userId, "智能评分");
+            String roles = userInfoRequest.getRoles();
+            String userPrompt = userInfoRequest.getUserPrompt();
+
+            // 初始化页面并导航到指定会话
+            Page page = browserUtil.getOrCreatePage(context);
+            if (dbchatId != null) {
+                page.navigate("https://www.doubao.com/chat/" + dbchatId);
+            } else {
+                page.navigate("https://www.doubao.com/chat/");
+            }
+
+            page.waitForLoadState(LoadState.LOAD);
+            Thread.sleep(500);
+            logInfo.sendTaskLog("智能评分页面打开完成", userId, "智能评分");
+            // 定位深度思考按钮
+            Locator deepThoughtButton = page.locator("button.semi-button:has-text('深度思考')");
+            // 检查按钮是否包含以 active- 开头的类名
+            Boolean isActive = (Boolean) deepThoughtButton.evaluate("element => {\n" +
+                    "    const classList = Array.from(element.classList);\n" +
+                    "    return classList.some(cls => cls.startsWith('active-'));\n" +
+                    "}");
+
+            // 确保 isActive 不为 null
+            if (isActive != null && !isActive && roles.contains("db-sdsk")) {
+                deepThoughtButton.click();
+                // 点击后等待一段时间，确保按钮状态更新
+                Thread.sleep(1000);
+
+                // 再次检查按钮状态
+                isActive = (Boolean) deepThoughtButton.evaluate("element => {\n" +
+                        "    const classList = Array.from(element.classList);\n" +
+                        "    return classList.some(cls => cls.startsWith('active-'));\n" +
+                        "}");
+                if (isActive != null && !isActive) {
+                    deepThoughtButton.click();
+                    Thread.sleep(1000);
+                }
+                logInfo.sendTaskLog("已启动深度思考模式", userId, "智能评分");
+            }
+            Thread.sleep(1000);
+            page.locator("[data-testid='chat_input_input']").click();
+            Thread.sleep(1000);
+            page.locator("[data-testid='chat_input_input']").fill(userPrompt);
+            logInfo.sendTaskLog("用户指令已自动输入完成", userId, "智能评分");
+            Thread.sleep(1000);
+            page.locator("[data-testid='chat_input_input']").press("Enter");
+            logInfo.sendTaskLog("指令已自动发送成功", userId, "智能评分");
+
+            // 创建定时截图线程
+            AtomicInteger i = new AtomicInteger(0);
+            ScheduledExecutorService screenshotExecutor = Executors.newSingleThreadScheduledExecutor();
+            // 🔥 优化：启动定时任务，增加页面状态检查和错误处理
+            ScheduledFuture<?> screenshotFuture = screenshotExecutor.scheduleAtFixedRate(() -> {
+                try {
+                    // 检查页面是否已关闭
+                    if (page.isClosed()) {
+                        return;
+                    }
+
+                    int currentCount = i.getAndIncrement();
+                    logInfo.sendImgData(page, userId + "智能评分执行过程截图" + currentCount, userId);
+                } catch (com.microsoft.playwright.impl.TargetClosedError e) {
+                } catch (PlaywrightException e) {
+                } catch (Exception e) {
+                    // 只记录严重错误到日志系统
+                    if (e.getMessage() != null && !e.getMessage().toLowerCase().contains("timeout")) {
+                        UserLogUtil.sendExceptionLog(userId, "智能评分截图", "startDBScore", e, url + "/saveLogInfo");
+                    }
+                }
+            }, 1000, 6000, TimeUnit.MILLISECONDS); // 🔥 优化：延迟1秒开始，每6秒执行一次
+
+            logInfo.sendTaskLog("开启自动监听任务，持续监听智能评分回答中", userId, "智能评分");
+            // 等待复制按钮出现并点击
+//            String copiedText =  douBaoUtil.waitAndClickDBCopyButton(page,userId,roles);
+            //等待html片段获取完成
+            String copiedText = douBaoUtil.waitDBHtmlDom(page, userId, "智能评分");
+            //关闭截图
+            screenshotFuture.cancel(false);
+            screenshotExecutor.shutdown();
+
+            boolean isRight;
+
+            Locator chatHis = page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/div/main/div/div/div[2]/div/div[1]/div/div/div[2]/div[2]/div/div/div/div/div/div/div[1]/div/div/div[2]/div[1]/div/div");
+            if (chatHis.count() > 0) {
+                isRight = true;
+            } else {
+                isRight = false;
+            }
+
+            AtomicReference<String> shareUrlRef = new AtomicReference<>();
+
+            clipboardLockManager.runWithClipboardLock(() -> {
+                try {
+                    if (isRight && page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[4]").count() > 0) {
+                        page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[4]").click();
+                        Thread.sleep(1000);
+                        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("公开分享")).click();
+                        Thread.sleep(500);
+                    } else {
+                        page.locator("button[data-testid='message_action_share']").last().click();
+                        Thread.sleep(2000);
+                        page.locator("button[data-testid='thread_share_copy_btn']").first().click();
+                    }
+
+                    // 建议适当延迟等待内容更新
+                    Thread.sleep(2000);
+                    String shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
+                    shareUrlRef.set(shareUrl);
+                } catch (Exception e) {
+                    UserLogUtil.sendExceptionLog(userId, "智能评分复制", "startDBScore", e, url + "/saveLogInfo");
+                }
+            });
+
+            Thread.sleep(1000);
+            String shareUrl = shareUrlRef.get();
+            String sharImgUrl = "";
+            if (isRight && page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[3]").count() > 0) {
+                page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[3]").click();
+                sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
+                    page.getByTestId("popover_select_option_item").nth(1).click();
+                });
+            } else {
+                page.locator("button[data-testid='message_action_share']").last().click();
+                Thread.sleep(2000);
+                Locator shareLocator = page.locator("(//span[contains(@class,'semi-button-content')][contains(text(),'分享图片')])[1]");
+                shareLocator.click();
+                Thread.sleep(5000);
+                sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
+                    page.locator("button:has-text(\"下载图片\")").click();
+                });
+            }
+
+            logInfo.sendTaskLog("执行完成", userId, "智能评分");
+            logInfo.sendResData(copiedText, userId, "智能评分", "RETURN_WKPF_RES", shareUrl, sharImgUrl);
+
+            //保存数据库
+            userInfoRequest.setDraftContent(copiedText);
+            userInfoRequest.setAiName("智能评分");
+            userInfoRequest.setShareUrl(shareUrl);
+            userInfoRequest.setShareImgUrl(sharImgUrl);
+            RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+            return McpResult.success(copiedText, shareUrl);
+        } catch (Exception e) {
+            throw e;
+        }
+    }
 
     /**
      * 处理豆包的常规请求
@@ -376,7 +534,7 @@ public class AIGCController {
         }
     }
 
-    @Operation(summary = "投递公众号排版", description = "调用元宝平台对内容进行评分并返回评分结果")
+    @Operation(summary = "投递公众号排版", description = "调用豆包对内容进行评分")
     @ApiResponse(responseCode = "200", description = "处理成功", content = @Content(mediaType = "application/json"))
     @PostMapping("/startDBOffice")
     public McpResult startYBOffice(@RequestBody UserInfoRequest userInfoRequest) throws InterruptedException {
