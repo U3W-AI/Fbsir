@@ -178,50 +178,171 @@ public class DeepSeekUtil {
             String currentContent = "";
             String lastContent = "";
             int stableCount = 0;
-
+            int emptyCount = 0;
+            int noChangeCount = 0;
+            int contentLengthHistory[] = new int[3]; // 记录最近三次内容长度
+            boolean hasCompletionMarkers = false; // 是否检测到完成标记
+  
             long startTime = System.currentTimeMillis();
 
             // 添加初始延迟，确保页面完全加载
-            page.waitForTimeout(2000);
+            page.waitForTimeout(500);
+            
+            // 判断是否为深度思考或联网模式
+            boolean isDeepThinkingMode = roles != null && roles.contains("ds-sdsk");
+            boolean isWebSearchMode = roles != null && roles.contains("ds-lwss");
+            
+            // 根据不同模式设置不同的超时和稳定参数
+            long maxTimeout = 300000; // 默认5分钟（原10分钟减5分钟）
+            int requiredStableCount = 1; // 默认稳定次数
+            int checkInterval = 200; // 默认检查间隔，降低到200ms
+            
+            if (isDeepThinkingMode && isWebSearchMode) {
+                maxTimeout = 1200000; // 深度思考+联网模式20分钟（原25分钟减5分钟）
+                requiredStableCount = 2; // 需要更多的稳定确认，但减少到2次
+                checkInterval = 300; // 增加检查间隔
+                logInfo.sendTaskLog("启用深度思考+联网模式监听，等待时间可能较长", userId, aiName);
+            } else if (isDeepThinkingMode) {
+                maxTimeout = 900000; // 深度思考模式15分钟（原20分钟减5分钟）
+                requiredStableCount = 2; // 需要更多的稳定确认
+                checkInterval = 250; // 增加检查间隔，但降低到250ms
+                logInfo.sendTaskLog("启用深度思考模式监听，等待时间可能较长", userId, aiName);
+            } else if (isWebSearchMode) {
+                maxTimeout = 600000; // 联网模式10分钟（原15分钟减5分钟）
+                requiredStableCount = 2; // 需要更多的稳定确认
+                checkInterval = 250; // 增加检查间隔，但降低到250ms
+                logInfo.sendTaskLog("启用联网搜索模式监听", userId, aiName);
+            }
 
             // 进入循环，直到内容不再变化或者超时
             while (true) {
                 // 检查是否超时
                 long elapsedTime = System.currentTimeMillis() - startTime;
-                boolean isDeepThinkingMode = roles != null && roles.contains("ds-sdsk");
-                long maxTimeout = isDeepThinkingMode ? 1200000 : 600000; // 深度思考模式20分钟，普通模式10分钟
-
                 if (elapsedTime > maxTimeout) {
-                    logInfo.sendTaskLog("超时，AI未完成回答！", userId, aiName);
+                    logInfo.sendTaskLog("超时，AI未完成回答或回答时间过长！", userId, aiName);
                     break;
                 }
 
                 // 获取最新AI回答内容
-                currentContent = getLatestAiResponse(page);
+                Map<String, Object> responseData = getLatestAiResponseWithDetails(page);
+                currentContent = (String) responseData.getOrDefault("content", "");
+                String textContent = (String) responseData.getOrDefault("textContent", "");
+                int contentLength = 0;
+                if (responseData.containsKey("length")) {
+                    contentLength = ((Number) responseData.get("length")).intValue();
+                }
+
+                // 检查是否有完成标记
+                hasCompletionMarkers = checkForCompletionMarkers(page);
 
                 // 如果成功获取到内容
-                if (currentContent != null && !currentContent.isEmpty()) {
+                if (currentContent != null && !currentContent.trim().isEmpty()) {
+                    // 重置空内容计数
+                    emptyCount = 0;
+                    
+                    // 更新内容长度历史
+                    for (int i = contentLengthHistory.length - 1; i > 0; i--) {
+                        contentLengthHistory[i] = contentLengthHistory[i-1];
+                    }
+                    contentLengthHistory[0] = contentLength;
+                    
                     // 检查内容是否稳定
                     if (currentContent.equals(lastContent)) {
                         stableCount++;
-
-                        // 深度思考模式需要更长的稳定时间
-                        int requiredStableCount = isDeepThinkingMode ? 2 : 1;
-
-                        // 如果内容连续稳定达到要求次数，认为AI已完成回答
-                        if (stableCount >= requiredStableCount) {
+                        
+                        // 检查是否有"正在思考"或类似的提示
+                        boolean isThinking = checkIfGenerating(page);
+                        
+                        // 智能判断完成条件
+                        boolean isComplete = false;
+                        
+                        // 条件1: 如果检测到完成标记
+                        if (hasCompletionMarkers) {
+                            logInfo.sendTaskLog("检测到完成标记，准备提取内容", userId, aiName);
+                            isComplete = true;
+                        }
+                        // 条件2: 内容稳定且不再生成
+                        else if (stableCount >= requiredStableCount && !isThinking) {
+                            // 检查内容长度，如果内容较长，可以更快结束等待
+                            if (contentLength > 1000) {
+                                // 对于很长的内容，只要稳定就可以提前结束
+                                logInfo.sendTaskLog("长内容已稳定，准备提取", userId, aiName);
+                                isComplete = true;
+                            }
+                            else if (contentLength > 500) {
+                                noChangeCount++;
+                                // 如果长内容连续多次没有变化，可以提前结束
+                                if (noChangeCount >= 2) { // 减少到2次
+                                    logInfo.sendTaskLog("内容稳定，准备提取", userId, aiName);
+                                    isComplete = true;
+                                }
+                            } 
+                            // 检查内容增长是否已经停止
+                            else if (isContentGrowthStopped(contentLengthHistory) && stableCount >= requiredStableCount) {
+                                logInfo.sendTaskLog("内容增长已停止，准备提取", userId, aiName);
+                                isComplete = true;
+                            }
+                            // 对于短内容，需要更多的稳定确认
+                            else if (stableCount >= requiredStableCount + 1) { // 减少额外等待次数
+                                logInfo.sendTaskLog("短内容已稳定，准备提取", userId, aiName);
+                                isComplete = true;
+                            }
+                        }
+                        
+                        if (isComplete) {
                             logInfo.sendTaskLog("DeepSeek回答完成，正在自动提取内容", userId, aiName);
                             break;
                         }
                     } else {
-                        // 内容发生变化，重置稳定计数
+                        // 内容发生变化，重置稳定计数和无变化计数
                         stableCount = 0;
+                        noChangeCount = 0;
                         lastContent = currentContent;
+                    }
+                } else {
+                    // 内容为空，增加空内容计数
+                    emptyCount++;
+                    
+                    // 如果连续多次获取到空内容，检查是否有错误
+                    if (emptyCount > 8) { // 减少到8次
+                        // 检查页面是否有错误提示
+                        try {
+                            Object errorResult = page.evaluate("""
+                                () => {
+                                    const errorElements = document.querySelectorAll('.error-message, .ds-error, [class*="error"]');
+                                    for (const el of errorElements) {
+                                        if (el.innerText && el.innerText.trim() && 
+                                            window.getComputedStyle(el).display !== 'none') {
+                                            return el.innerText.trim();
+                                        }
+                                    }
+                                    return null;
+                                }
+                            """);
+                            
+                            if (errorResult instanceof String && !((String)errorResult).isEmpty()) {
+                                logInfo.sendTaskLog("DeepSeek返回错误: " + errorResult, userId, aiName);
+                                return "DeepSeek错误: " + errorResult;
+                            }
+                        } catch (Exception e) {
+                            // 忽略评估错误
+                        }
+                        
+                        // 如果没有找到错误但内容持续为空，可能需要重新检查
+                        if (emptyCount > 15) { // 减少到15次
+                            logInfo.sendTaskLog("DeepSeek未返回内容，请检查网络或账号状态", userId, aiName);
+                            return "DeepSeek未返回内容，请检查网络或账号状态";
+                        }
                     }
                 }
 
-                // 等待一段时间再次检查
-                page.waitForTimeout(300);
+                // 根据不同模式使用不同的检查间隔
+                page.waitForTimeout(checkInterval);
+                
+                // 动态调整检查间隔，随着等待时间增加而增加，避免频繁检查
+                if (elapsedTime > 30000) { // 30秒后
+                    checkInterval = Math.min(800, checkInterval + 50); // 逐渐增加到最多800ms
+                }
             }
 
             logInfo.sendTaskLog("DeepSeek内容已自动提取完成", userId, aiName);
@@ -238,40 +359,67 @@ public class DeepSeekUtil {
      */
     private boolean checkIfGenerating(Page page) {
         try {
-            // 检查生成指示器  (发送按键和停止输出公用一个class 无法判断)
+            // 使用更可靠的方法检查生成状态
             Object generatingStatus = page.evaluate("""
             () => {
-                // 检查停止指示器 ._7436101
-                const thinkingIndicators = document.querySelectorAll(
-                    '.generating-indicator, .loading-indicator, .thinking-indicator, ' +
-                    '.ds-typing-container, .ds-loading-dots, .loading-container'
-                );
-                
-                let isGenerating = false;
-                for (const indicator of thinkingIndicators) {
-                    if (indicator && window.getComputedStyle(indicator).display !== 'none') {
-                        isGenerating = true;
-                        break;
-                    }
-                }
-                
-                // 检查停止生成按钮
-                if (!isGenerating) {
-                    const stopButtons = document.querySelectorAll(
-                        'button:contains("停止生成"), [title="停止生成"], .stop-generating-button'
+                try {
+                    // 检查停止指示器
+                    const thinkingIndicators = document.querySelectorAll(
+                        '.generating-indicator, .loading-indicator, .thinking-indicator, ' +
+                        '.ds-typing-container, .ds-loading-dots, .loading-container, ' +
+                        '[class*="loading"], [class*="typing"], [class*="generating"]'
                     );
-                    for (const btn of stopButtons) {
-                        if (btn && window.getComputedStyle(btn).display !== 'none' && 
-                            window.getComputedStyle(btn).visibility !== 'hidden') {
-                            isGenerating = true;
-                            break;
+                    
+                    for (const indicator of thinkingIndicators) {
+                        if (indicator && 
+                            window.getComputedStyle(indicator).display !== 'none' && 
+                            window.getComputedStyle(indicator).visibility !== 'hidden') {
+                            return true;
                         }
                     }
+                    
+                    // 检查停止生成按钮
+                    const stopButtons = document.querySelectorAll(
+                        'button:contains("停止生成"), button:contains("Stop"), ' +
+                        '[title="停止生成"], [title="Stop generating"], ' +
+                        '.stop-generating-button, [class*="stop"]'
+                    );
+                    
+                    for (const btn of stopButtons) {
+                        if (btn && 
+                            window.getComputedStyle(btn).display !== 'none' && 
+                            window.getComputedStyle(btn).visibility !== 'hidden') {
+                            return true;
+                        }
+                    }
+                    
+                    // 检查光标闪烁
+                    const blinkingElements = document.querySelectorAll(
+                        '[class*="cursor"], [class*="blink"]'
+                    );
+                    
+                    for (const el of blinkingElements) {
+                        if (el && 
+                            window.getComputedStyle(el).display !== 'none' && 
+                            window.getComputedStyle(el).visibility !== 'hidden') {
+                            // 检查是否在最后一个回复中
+                            const responses = document.querySelectorAll('.ds-markdown');
+                            if (responses.length > 0) {
+                                const lastResponse = responses[responses.length - 1];
+                                if (lastResponse.contains(el)) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    
+                    return false;
+                } catch (e) {
+                    console.error('检查生成状态时出错:', e);
+                    return false;
                 }
-                
-                return isGenerating;
             }
-        """);
+            """);
 
             return generatingStatus instanceof Boolean ? (Boolean) generatingStatus : false;
         } catch (Exception e) {
@@ -280,11 +428,114 @@ public class DeepSeekUtil {
     }
 
     /**
-     * 获取AI最新的回答内容
-     * @param page Playwright页面对象
-     * @return 最新的AI回答内容
+     * 检查内容增长是否已经停止
+     * @param contentLengthHistory 内容长度历史记录
+     * @return 如果内容增长已停止返回true
      */
-    private String getLatestAiResponse(Page page) {
+    private boolean isContentGrowthStopped(int[] contentLengthHistory) {
+        // 检查最近三次内容长度是否相同或几乎相同
+        if (contentLengthHistory[0] > 0 && 
+            Math.abs(contentLengthHistory[0] - contentLengthHistory[1]) <= 5 && 
+            Math.abs(contentLengthHistory[1] - contentLengthHistory[2]) <= 5) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 检查页面是否有完成标记
+     * @param page Playwright页面对象
+     * @return 如果检测到完成标记返回true
+     */
+    private boolean checkForCompletionMarkers(Page page) {
+        try {
+            Object result = page.evaluate("""
+                () => {
+                    try {
+                        // 检查是否有完成标记
+                        const lastMessage = document.querySelector('.ds-markdown:last-child');
+                        if (!lastMessage) return false;
+                        
+                        // 检查是否有代码块闭合
+                        const codeBlocks = lastMessage.querySelectorAll('pre, code');
+                        if (codeBlocks.length > 0) {
+                            // 检查代码块是否都已闭合
+                            const openCodeTags = lastMessage.textContent.match(/```[^`]*/g) || [];
+                            // 如果开标签数量为奇数，说明有未闭合的代码块
+                            if (openCodeTags.length % 2 !== 0) return false;
+                        }
+                        
+                        // 检查是否有未闭合的括号或引号
+                        const text = lastMessage.textContent;
+                        const brackets = { '(': ')', '[': ']', '{': '}' };
+                        const stack = [];
+                        
+                        for (let i = 0; i < text.length; i++) {
+                            const char = text[i];
+                            if (char === '(' || char === '[' || char === '{') {
+                                stack.push(char);
+                            } else if (char === ')' || char === ']' || char === '}') {
+                                const lastOpen = stack.pop();
+                                if (brackets[lastOpen] !== char) {
+                                    // 括号不匹配，可能是文本中的括号，忽略
+                                }
+                            }
+                        }
+                        
+                        // 如果栈不为空，说明有未闭合的括号
+                        if (stack.length > 0) return false;
+                        
+                        // 检查是否有常见的结束标记
+                        const commonEndMarkers = [
+                            /希望这对你有所帮助/,
+                            /如果你有任何其他问题/,
+                            /如有任何疑问/,
+                            /祝你好运/,
+                            /希望能够解决你的问题/,
+                            /希望对你有帮助/,
+                            /Have a great day/,
+                            /Hope this helps/,
+                            /Let me know if/,
+                            /感谢使用/,
+                            /Thank you for using/
+                        ];
+                        
+                        for (const marker of commonEndMarkers) {
+                            if (marker.test(text)) {
+                                return true;
+                            }
+                        }
+                        
+                        // 检查是否有完整的句子结束（以句号、问号或感叹号结束）
+                        const lastChar = text.trim().slice(-1);
+                        if (['.', '。', '!', '！', '?', '？'].includes(lastChar)) {
+                            // 检查最近500ms是否有新内容
+                            const timestamp = lastMessage.getAttribute('data-timestamp');
+                            if (timestamp && (Date.now() - parseInt(timestamp)) > 500) {
+                                return true;
+                            }
+                        }
+                        
+                        return false;
+                    } catch (e) {
+                        console.error('检查完成标记时出错:', e);
+                        return false;
+                    }
+                }
+            """);
+            
+            return result instanceof Boolean ? (Boolean) result : false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 获取AI最新的回答内容，并返回详细信息
+     * @param page Playwright页面对象
+     * @return 包含内容和元数据的Map
+     */
+    private Map<String, Object> getLatestAiResponseWithDetails(Page page) {
         try {
             Object jsResult = page.evaluate("""
             () => {
@@ -292,8 +543,27 @@ public class DeepSeekUtil {
                     // 获取所有包含AI回答的消息
                     const markdownElements = document.querySelectorAll('.ds-markdown');
                     if (markdownElements.length === 0) {
+                        // 尝试其他可能的选择器
+                        const alternativeElements = document.querySelectorAll(
+                            '.markdown-body, .ai-response, .message-content, [class*="markdown"]'
+                        );
+                        
+                        if (alternativeElements.length > 0) {
+                            const latestAlt = alternativeElements[alternativeElements.length - 1];
+                            const textContent = latestAlt.textContent || '';
+                            return {
+                                content: latestAlt.innerHTML,
+                                textContent: textContent,
+                                length: textContent.trim().length,
+                                source: 'alternative-selector',
+                                timestamp: Date.now()
+                            };
+                        }
+                        
                         return {
                             content: '',
+                            textContent: '',
+                            length: 0,
                             source: 'no-markdown-elements',
                             timestamp: Date.now()
                         };
@@ -302,6 +572,11 @@ public class DeepSeekUtil {
                     // 获取最新的Markdown内容
                     const latestMarkdown = markdownElements[markdownElements.length - 1];
                     
+                    // 为元素添加时间戳以便后续检查
+                    if (!latestMarkdown.hasAttribute('data-timestamp')) {
+                        latestMarkdown.setAttribute('data-timestamp', Date.now().toString());
+                    }
+                    
                     // 克隆内容以避免修改原DOM
                     const contentClone = latestMarkdown.cloneNode(true);
                     
@@ -309,7 +584,8 @@ public class DeepSeekUtil {
                     const iconsToRemove = contentClone.querySelectorAll(
                         '._7eb2358, ._58dfa60, .ds-icon, svg, ' +
                         '.avatar, .user-avatar, .ai-avatar, ' +
-                        '.ds-button, button, [role="button"]'
+                        '.ds-button, button, [role="button"], ' +
+                        '[class*="loading"], [class*="typing"], [class*="cursor"]'
                     );
                     iconsToRemove.forEach(icon => icon.remove());
                     
@@ -317,31 +593,49 @@ public class DeepSeekUtil {
                     const emptyDivs = contentClone.querySelectorAll('div:empty');
                     emptyDivs.forEach(div => div.remove());
                     
+                    // 检查内容长度
+                    const textContent = contentClone.textContent || '';
+                    const contentLength = textContent.trim().length;
+                    
                     return {
                         content: contentClone.innerHTML,
+                        textContent: textContent,
+                        length: contentLength,
+                        hasCodeBlocks: contentClone.querySelectorAll('pre, code').length > 0,
                         source: 'latest-markdown',
                         timestamp: Date.now()
                     };
                 } catch (e) {
                     return {
                         content: '',
+                        textContent: '',
+                        length: 0,
                         source: 'error',
                         error: e.toString(),
                         timestamp: Date.now()
                     };
                 }
             }
-        """);
+            """);
 
             if (jsResult instanceof Map) {
-                Map<String, Object> result = (Map<String, Object>) jsResult;
-                return (String) result.getOrDefault("content", "");
+                return (Map<String, Object>) jsResult;
             }
         } catch (Exception e) {
             System.err.println("获取AI回答时出错: " + e.getMessage());
         }
 
-        return "";
+        return new HashMap<>();
+    }
+
+    /**
+     * 获取AI最新的回答内容
+     * @param page Playwright页面对象
+     * @return 最新的AI回答内容
+     */
+    private String getLatestAiResponse(Page page) {
+        Map<String, Object> responseData = getLatestAiResponseWithDetails(page);
+        return (String) responseData.getOrDefault("content", "");
     }
 
 
@@ -504,169 +798,93 @@ public class DeepSeekUtil {
                 toggleButtonIfNeeded(page, userId, "联网搜索", false, logInfo);
             }
             
-            // 定位并填充输入框
+            // 定位并填充输入框 - 使用新的定位方式
             try {
-                Locator inputBox = page.locator("#chat-input");
-                // 优化等待逻辑：循环检测输入框可用，最多等3秒
-                int inputWait = 0;
-                while ((inputBox.count() == 0 || !inputBox.isVisible()) && inputWait < 30) {
-                    Thread.sleep(100);
-                    inputBox = page.locator("#chat-input");
-                    inputWait++;
-                }
-                if (inputBox.count() > 0 && inputBox.isVisible()) {
-                    inputBox.click();
-                    // 等待输入框获得焦点（最多500ms）
-                    int focusWait = 0;
-                    while (!inputBox.evaluate("el => document.activeElement === el").equals(Boolean.TRUE) && focusWait < 5) {
-                        Thread.sleep(100);
-                        focusWait++;
-                    }
-                    inputBox.fill(userPrompt);
-                    logInfo.sendTaskLog("用户指令已自动输入完成", userId, "DeepSeek");
-                    // 立即尝试点击发送按钮，无需多余等待
+                Locator inputBox = null;
+                boolean inputFound = false;
+                
+                // 尝试多种输入框定位方式
+                String[] inputSelectors = {
+                    "textarea[placeholder*='给 DeepSeek 发送消息']",
+                    "textarea[placeholder*='Send a message']", 
+                    "textarea.ds-scroll-area",
+                    "textarea._27c9245",
+                    "#chat-input",
+                    ".chat-input",
+                    "textarea[rows='2']"
+                };
+                
+                // 循环尝试不同的选择器
+                for (String selector : inputSelectors) {
                     try {
-                        // 使用用户提供的特定选择器
-                        String sendButtonSelector = "._7436101";
-                        boolean clicked = false;
-                        Locator sendButton = page.locator(sendButtonSelector);
-                        // 循环检测发送按钮可用，最多等2秒
-                        int sendWait = 0;
-                        while ((sendButton.count() == 0 || !sendButton.isVisible()) && sendWait < 20) {
-                            Thread.sleep(100);
-                            sendButton = page.locator(sendButtonSelector);
-                            sendWait++;
+                        inputBox = page.locator(selector).first();
+                        if (inputBox.count() > 0 && inputBox.isVisible()) {
+                            inputFound = true;
+                            logInfo.sendTaskLog("使用选择器找到输入框: " + selector, userId, "DeepSeek");
+                            break;
                         }
-                        if (sendButton.count() > 0 && sendButton.isVisible()) {
-                            try {
-                                sendButton.scrollIntoViewIfNeeded();
-                                sendButton.click(new Locator.ClickOptions().setForce(true).setTimeout(5000));
-                                clicked = true;
-                                logInfo.sendTaskLog("指令已自动发送成功", userId, "DeepSeek");
-                            } catch (Exception e) {
-                            }
-                        } else {
-                        }
-                        
-                        // 如果特定按钮点击失败，尝试其他选择器
-                        if (!clicked) {
-                            try {
-                                // 尝试常见的发送按钮选择器
-                                String[] alternativeSelectors = {
-                                    "button.send-button", 
-                                    "button[aria-label='发送']",
-                                    "button[aria-label='Send']",
-                                    "button.ds-button--primary",
-                                    ".send-message-button"
-                                };
-                                
-                                for (String selector : alternativeSelectors) {
-                                    try {
-                                        Locator altButton = page.locator(selector).first();
-                                        if (altButton.count() > 0 && altButton.isVisible()) {
-                                            altButton.click(new Locator.ClickOptions().setForce(true).setTimeout(3000));
-                                            clicked = true;
-                                            logInfo.sendTaskLog("指令已自动发送成功", userId, "DeepSeek");
-                                            break;
-                                        }
-                                    } catch (Exception e) {
-                                        // 继续尝试下一个选择器
-                                    }
-                                }
-                            } catch (Exception e) {
-                            }
-                        }
-                        
-                        // 如果所有按钮选择器都失败，尝试使用JavaScript点击
-                        if (!clicked) {
-                            try {
-                                Object result = page.evaluate("""
-                                    () => {
-                                        try {
-                                            // 记录消息发送时间戳，用于后续判断回答是否为当前会话的新回答
-                                            window._deepseekMessageSentTime = Date.now();
-                                            console.log('设置消息发送时间戳:', window._deepseekMessageSentTime);
-                                            
-                                            // 尝试多种可能的按钮
-                                            const selectors = [
-                                                '._7436101', 
-                                                'button.send-button', 
-                                                'button[aria-label="发送"]',
-                                                'button[aria-label="Send"]',
-                                                'button.ds-button--primary',
-                                                '.send-message-button'
-                                            ];
-                                            
-                                            // 遍历所有选择器
-                                            for (const selector of selectors) {
-                                                const button = document.querySelector(selector);
-                                                if (button && button.offsetParent !== null) {
-                                                    button.click();
-                                                    return { method: selector, success: true };
-                                                }
-                                            }
-                                            
-                                            // 尝试找到任何看起来像发送按钮的元素
-                                            const allButtons = document.querySelectorAll('button');
-                                            for (const btn of allButtons) {
-                                                if (btn.innerText && (btn.innerText.includes('发送') || btn.innerText.includes('Send'))) {
-                                                    btn.click();
-                                                    return { method: '文本匹配', success: true };
-                                                }
-                                                
-                                                // 检查按钮样式是否暗示它是发送按钮
-                                                const style = window.getComputedStyle(btn);
-                                                if (style.backgroundColor && 
-                                                    (style.backgroundColor.includes('rgb(77, 107, 254)') || 
-                                                     style.backgroundColor.includes('#4D6BFE'))) {
-                                                    btn.click();
-                                                    return { method: '样式匹配', success: true };
-                                                }
-                                            }
-                                            
-                                            // 如果仍然找不到，尝试按回车键
-                                            const inputElement = document.querySelector('#chat-input');
-                                            if (inputElement) {
-                                                const event = new KeyboardEvent('keydown', {
-                                                    key: 'Enter',
-                                                    code: 'Enter',
-                                                    keyCode: 13,
-                                                    bubbles: true
-                                                });
-                                                inputElement.dispatchEvent(event);
-                                                return { method: 'Enter键', success: true };
-                                            }
-                                            
-                                            return { method: '所有方法', success: false };
-                                        } catch (e) {
-                                            return { method: '出错', success: false, error: e.toString() };
-                                        }
-                                    }
-                                """);
-                                
-                                // 最后一招：尝试按下Enter键
-                                try {
-                                    // 设置消息发送时间戳
-                                    page.evaluate("() => { window._deepseekMessageSentTime = Date.now(); console.log('设置消息发送时间戳(Enter):', window._deepseekMessageSentTime); }");
-                                    
-                                    inputBox.press("Enter");
-                                    logInfo.sendTaskLog("指令已自动发送成功", userId, "DeepSeek");
-                                } catch (Exception e) {
-                                }
-                            } catch (Exception e) {
-                            }
-                        }
-
-                        // 等待一段时间，确保消息已发送
-                        Thread.sleep(1000); // 给予充足的时间确保消息发送
                     } catch (Exception e) {
-                        return "获取内容失败：发送消息出错";
+                        // 继续尝试下一个选择器
                     }
+                }
+                
+                // 如果还是找不到，使用JavaScript查找
+                if (!inputFound) {
+                    try {
+                        Object jsResult = page.evaluate("""
+                            () => {
+                                const textareas = document.querySelectorAll('textarea');
+                                for (const textarea of textareas) {
+                                    if (textarea.placeholder && 
+                                        (textarea.placeholder.includes('DeepSeek') || 
+                                         textarea.placeholder.includes('发送消息') ||
+                                         textarea.placeholder.includes('Send a message'))) {
+                                        textarea.setAttribute('data-ai-input', 'true');
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+                        """);
+                        
+                        if (Boolean.TRUE.equals(jsResult)) {
+                            inputBox = page.locator("textarea[data-ai-input='true']").first();
+                            if (inputBox.count() > 0 && inputBox.isVisible()) {
+                                inputFound = true;
+                                logInfo.sendTaskLog("通过JavaScript找到输入框", userId, "DeepSeek");
+                            }
+                        }
+                    } catch (Exception e) {
+                        // JavaScript方法也失败了
+                    }
+                }
+                
+                if (inputFound && inputBox != null) {
+                    // 点击输入框获得焦点
+                    inputBox.click();
+                    Thread.sleep(500); // 等待焦点切换
+                    
+                    // 清空输入框
+                    inputBox.fill("");
+                    Thread.sleep(200);
+                    
+                    // 使用模拟人工输入方式
+                    simulateHumanTyping(page, inputBox, userPrompt, userId);
+                    
+                    logInfo.sendTaskLog("用户指令已自动输入完成", userId, "DeepSeek");
+                    
+                    // 等待发送按钮可用并点击
+                    boolean sendSuccess = clickSendButton(page, userId);
+                    
+                    if (!sendSuccess) {
+                        return "获取内容失败：发送消息失败";
+                    }
+                    
                 } else {
                     return "获取内容失败：未找到输入框";
                 }
             } catch (Exception e) {
-                return "获取内容失败：发送消息出错";
+                return "获取内容失败：发送消息出错 - " + e.getMessage();
             }
             
             // 等待回答完成并获取内容
@@ -678,6 +896,252 @@ public class DeepSeekUtil {
             
         } catch (Exception e) {
             throw e;
+        }
+    }
+
+    /**
+     * 模拟人工输入文本
+     * @param page Playwright页面
+     * @param inputBox 输入框元素
+     * @param text 要输入的文本
+     * @param userId 用户ID
+     */
+    private void simulateHumanTyping(Page page, Locator inputBox, String text, String userId) throws InterruptedException {
+        try {
+            // 先尝试逐字符输入
+            for (int i = 0; i < text.length(); i++) {
+                String currentChar = String.valueOf(text.charAt(i));
+                inputBox.type(currentChar, new Locator.TypeOptions().setDelay(50 + (int)(Math.random() * 100))); // 50-150ms延迟
+                
+                // 每输入几个字符检查一下是否成功
+                if (i % 10 == 0) {
+                    Thread.sleep(100);
+                    String currentValue = (String) inputBox.evaluate("el => el.value");
+                    if (currentValue == null || !currentValue.contains(text.substring(0, Math.min(i + 1, text.length())))) {
+                        // 如果检测到输入有问题，重新设置焦点并继续
+                        inputBox.click();
+                        Thread.sleep(200);
+                    }
+                }
+            }
+            
+            // 验证输入是否完成
+            String finalValue = (String) inputBox.evaluate("el => el.value");
+            if (finalValue == null || !finalValue.contains(text.substring(0, Math.min(50, text.length())))) {
+                // 如果模拟输入失败，尝试直接填充
+                logInfo.sendTaskLog("模拟输入失败，尝试直接填充", userId, "DeepSeek");
+                inputBox.fill(text);
+            } else {
+                logInfo.sendTaskLog("模拟人工输入成功", userId, "DeepSeek");
+            }
+            
+        } catch (Exception e) {
+            // 如果模拟输入出错，回退到直接填充
+            logInfo.sendTaskLog("模拟输入出错，使用直接填充: " + e.getMessage(), userId, "DeepSeek");
+            inputBox.fill(text);
+        }
+    }
+
+    /**
+     * 点击发送按钮
+     * @param page Playwright页面
+     * @param userId 用户ID
+     * @return 是否发送成功
+     */
+    private boolean clickSendButton(Page page, String userId) throws InterruptedException {
+        try {
+            // 等待发送按钮可用
+            boolean buttonReady = false;
+            int waitCount = 0;
+            final int MAX_WAIT = 50; // 最多等待5秒
+            
+            while (!buttonReady && waitCount < MAX_WAIT) {
+                try {
+                    // 检查发送按钮是否可用
+                    Object buttonStatus = page.evaluate("""
+                        () => {
+                            // 查找发送按钮
+                            const selectors = [
+                                '._7436101',
+                                'button[aria-disabled="false"]',
+                                '.send-button:not([disabled])',
+                                'button:not([aria-disabled="true"]):not([disabled])'
+                            ];
+                            
+                            for (const selector of selectors) {
+                                const button = document.querySelector(selector);
+                                if (button && 
+                                    button.getAttribute('aria-disabled') !== 'true' &&
+                                    !button.disabled &&
+                                    window.getComputedStyle(button).display !== 'none') {
+                                    return { found: true, selector: selector };
+                                }
+                            }
+                            
+                            return { found: false };
+                        }
+                    """);
+                    
+                    if (buttonStatus instanceof Map) {
+                        Map<String, Object> status = (Map<String, Object>) buttonStatus;
+                        if (Boolean.TRUE.equals(status.get("found"))) {
+                            buttonReady = true;
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    // 继续等待
+                }
+                
+                Thread.sleep(100);
+                waitCount++;
+            }
+            
+            if (!buttonReady) {
+                logInfo.sendTaskLog("发送按钮等待超时，尝试强制发送", userId, "DeepSeek");
+            }
+            
+            // 尝试点击发送按钮
+            boolean clicked = false;
+            
+            // 方法1: 使用特定选择器
+            try {
+                Locator sendButton = page.locator("._7436101").first();
+                if (sendButton.count() > 0) {
+                    // 等待按钮变为可用状态
+                    for (int i = 0; i < 10 && !clicked; i++) {
+                        try {
+                            String ariaDisabled = sendButton.getAttribute("aria-disabled");
+                            if (!"true".equals(ariaDisabled)) {
+                                sendButton.click(new Locator.ClickOptions().setForce(true).setTimeout(3000));
+                                clicked = true;
+                                logInfo.sendTaskLog("指令已自动发送成功", userId, "DeepSeek");
+                                break;
+                            }
+                        } catch (Exception e) {
+                            // 继续尝试
+                        }
+                        Thread.sleep(500);
+                    }
+                }
+            } catch (Exception e) {
+                // 方法1失败，尝试其他方法
+            }
+            
+            // 方法2: 尝试其他发送按钮选择器
+            if (!clicked) {
+                String[] sendButtonSelectors = {
+                    "button[aria-disabled='false']",
+                    "button:not([aria-disabled='true']):not([disabled])",
+                    ".send-button:not([disabled])",
+                    "button.ds-button--primary:not([disabled])",
+                    "[role='button']:not([aria-disabled='true'])"
+                };
+                
+                for (String selector : sendButtonSelectors) {
+                    try {
+                        Locator button = page.locator(selector).first();
+                        if (button.count() > 0 && button.isVisible()) {
+                            button.click(new Locator.ClickOptions().setForce(true).setTimeout(3000));
+                            clicked = true;
+                            logInfo.sendTaskLog("使用备用选择器发送成功: " + selector, userId, "DeepSeek");
+                            break;
+                        }
+                    } catch (Exception e) {
+                        // 继续尝试下一个选择器
+                    }
+                }
+            }
+            
+            // 方法3: 使用JavaScript强制点击
+            if (!clicked) {
+                try {
+                    Object result = page.evaluate("""
+                        () => {
+                            // 设置消息发送时间戳
+                            window._deepseekMessageSentTime = Date.now();
+                            
+                            // 尝试多种发送方式
+                            const selectors = [
+                                '._7436101',
+                                'button[aria-disabled="false"]',
+                                '.send-button:not([disabled])',
+                                'button:not([aria-disabled="true"]):not([disabled])'
+                            ];
+                            
+                            for (const selector of selectors) {
+                                const button = document.querySelector(selector);
+                                if (button && window.getComputedStyle(button).display !== 'none') {
+                                    try {
+                                        button.click();
+                                        return { method: selector, success: true };
+                                    } catch (e) {
+                                        continue;
+                                    }
+                                }
+                            }
+                            
+                            // 尝试按Enter键
+                            const textareas = document.querySelectorAll('textarea');
+                            for (const textarea of textareas) {
+                                if (textarea.value && textarea.value.trim()) {
+                                    const event = new KeyboardEvent('keydown', {
+                                        key: 'Enter',
+                                        code: 'Enter',
+                                        keyCode: 13,
+                                        bubbles: true
+                                    });
+                                    textarea.dispatchEvent(event);
+                                    return { method: 'Enter键', success: true };
+                                }
+                            }
+                            
+                            return { method: '所有方法', success: false };
+                        }
+                    """);
+                    
+                    if (result instanceof Map) {
+                        Map<String, Object> jsResult = (Map<String, Object>) result;
+                        if (Boolean.TRUE.equals(jsResult.get("success"))) {
+                            clicked = true;
+                            logInfo.sendTaskLog("JavaScript发送成功: " + jsResult.get("method"), userId, "DeepSeek");
+                        }
+                    }
+                } catch (Exception e) {
+                    // JavaScript方法也失败了
+                }
+            }
+            
+            // 方法4: 最后尝试按Enter键
+            if (!clicked) {
+                try {
+                    page.keyboard().press("Enter");
+                    clicked = true;
+                    logInfo.sendTaskLog("使用Enter键发送", userId, "DeepSeek");
+                } catch (Exception e) {
+                    // 最后的方法也失败了
+                }
+            }
+            
+            if (clicked) {
+                // 设置发送时间戳
+                try {
+                    page.evaluate("() => { window._deepseekMessageSentTime = Date.now(); }");
+                } catch (Exception e) {
+                    // 忽略错误
+                }
+                
+                // 等待确保消息已发送
+                Thread.sleep(1000);
+                return true;
+            } else {
+                logInfo.sendTaskLog("所有发送方法都失败了", userId, "DeepSeek");
+                return false;
+            }
+            
+        } catch (Exception e) {
+            logInfo.sendTaskLog("发送按钮点击出错: " + e.getMessage(), userId, "DeepSeek");
+            return false;
         }
     }
 
