@@ -529,6 +529,17 @@
       canLayout() {
         return this.layoutPrompt.trim().length > 0;
       },
+      // 检查所有任务是否完成
+      allTasksCompleted() {
+        if (!this.taskStarted || this.enabledAIs.length === 0) {
+          return false;
+        }
+        return this.enabledAIs.every(ai => ai.status === 'completed' || ai.status === 'failed');
+      },
+      // 检查是否有任务正在运行
+      hasRunningTasks() {
+        return this.enabledAIs.some(ai => ai.status === 'running');
+      },
       groupedHistory() {
         const groups = {};
         const chatGroups = {};
@@ -585,6 +596,19 @@
           this.loadMediaPrompt(newMedia);
         },
         immediate: false
+      },
+      // 监听任务完成状态
+      allTasksCompleted: {
+        handler(newValue) {
+          if (newValue && this.taskStarted) {
+            // 所有任务完成时的处理
+            this.$nextTick(() => {
+              this.$message.success('所有AI任务已完成！');
+              // 可以考虑自动折叠任务流程区域或其他UI优化
+            });
+          }
+        },
+        immediate: false
       }
     },
     methods: {
@@ -605,12 +629,19 @@
         this.userInfoReq.corpId = this.corpId;
         this.userInfoReq.userPrompt = this.promptInput;
 
-        // 获取启用的AI列表及其状态
-        this.enabledAIs = this.aiList.filter((ai) => ai.enabled);
+        // 获取启用的AI列表及其状态，并重置状态
+        this.enabledAIs = this.aiList.filter((ai) => ai.enabled).map(ai => ({
+          ...ai,
+          status: "running",
+          progressLogs: [], // 清空之前的进度日志
+          isExpanded: true  // 确保展开状态一致
+        }));
 
-        // 将所有启用的AI状态设置为运行中
+        // 将所有启用的AI状态设置为运行中（使用Vue的响应式更新）
         this.enabledAIs.forEach((ai) => {
           this.$set(ai, "status", "running");
+          this.$set(ai, "progressLogs", []);
+          this.$set(ai, "isExpanded", true);
         });
 
         this.enabledAIs.forEach((ai) => {
@@ -921,10 +952,15 @@
 
         // 处理进度日志消息
         if(dataObj.type === "RETURN_PC_TASK_LOG" && dataObj.aiName) {
+          // 只处理当前任务的日志消息
+          if(dataObj.taskId && dataObj.taskId !== this.userInfoReq.taskId) {
+            return; // 忽略其他任务的消息
+          }
+          
           const targetAI = this.enabledAIs.find(
             (ai) => ai.name === dataObj.aiName
           );
-          if(targetAI) {
+          if(targetAI && targetAI.status === "running") { // 只在运行状态时添加日志
             // 检查是否已存在相同内容的日志，避免重复添加
             const existingLog = targetAI.progressLogs.find(log => log.content === dataObj.content);
             if(!existingLog) {
@@ -933,6 +969,7 @@
                 content: dataObj.content,
                 timestamp: new Date(),
                 isCompleted: false,
+                taskId: this.userInfoReq.taskId // 记录任务ID
               });
             }
           }
@@ -941,6 +978,11 @@
 
         // 处理截图消息
         if(dataObj.type === "RETURN_PC_TASK_IMG" && dataObj.url) {
+          // 只处理当前任务的截图
+          if(dataObj.taskId && dataObj.taskId !== this.userInfoReq.taskId) {
+            return; // 忽略其他任务的截图
+          }
+          
           // 将新的截图添加到数组开头
           this.screenshots.unshift(dataObj.url);
           return;
@@ -1027,6 +1069,16 @@
         }
 
         if(targetAI) {
+          // 只处理当前任务的结果
+          if(dataObj.taskId && dataObj.taskId !== this.userInfoReq.taskId) {
+            return; // 忽略其他任务的消息
+          }
+
+          // 检查AI是否还在运行状态，避免重复处理
+          if(targetAI.status !== "running") {
+            return;
+          }
+
           // 更新AI状态为已完成
           this.$set(targetAI, "status", "completed");
 
@@ -1037,7 +1089,7 @@
 
           // 添加结果到数组开头
           const resultIndex = this.results.findIndex(
-            (r) => r.aiName === targetAI.name
+            (r) => r.aiName === targetAI.name && r.taskId === this.userInfoReq.taskId
           );
           if(resultIndex === -1) {
             this.results.unshift({
@@ -1046,6 +1098,7 @@
               shareUrl: dataObj.shareUrl || "",
               shareImgUrl: dataObj.shareImgUrl || "",
               timestamp: new Date(),
+              taskId: this.userInfoReq.taskId // 记录任务ID
             });
             this.activeResultTab = "result-0";
           } else {
@@ -1056,6 +1109,7 @@
               shareUrl: dataObj.shareUrl || "",
               shareImgUrl: dataObj.shareImgUrl || "",
               timestamp: new Date(),
+              taskId: this.userInfoReq.taskId // 记录任务ID
             });
             this.activeResultTab = "result-0";
           }
@@ -1267,12 +1321,24 @@
             currentEnabledAIs.forEach(currentAI => {
               const exists = this.enabledAIs.find(historicalAI => historicalAI.name === currentAI.name);
               if(!exists) {
-                this.enabledAIs.push(currentAI);
+                // 为新增的AI设置为idle状态
+                const newAI = {
+                  ...currentAI,
+                  status: "idle",
+                  progressLogs: [],
+                  isExpanded: true
+                };
+                this.enabledAIs.push(newAI);
               }
             });
           } else {
-            // 如果没有历史记录，使用当前启用的AI
-            this.enabledAIs = this.aiList.filter((ai) => ai.enabled);
+            // 如果没有历史记录，使用当前启用的AI，设置为idle状态
+            this.enabledAIs = this.aiList.filter((ai) => ai.enabled).map(ai => ({
+              ...ai,
+              status: "idle",
+              progressLogs: [],
+              isExpanded: true
+            }));
           }
           // 恢复主机可视化
           this.screenshots = historyData.screenshots || [];
@@ -1362,6 +1428,14 @@
         this.screenshots = [];
         this.results = [];
         this.enabledAIs = [];
+        
+        // 重置所有AI状态为初始状态
+        this.aiList.forEach(ai => {
+          this.$set(ai, "status", "idle");
+          this.$set(ai, "progressLogs", []);
+          this.$set(ai, "isExpanded", true);
+        });
+        
         this.userInfoReq = {
           userPrompt: "",
           userId: this.userId,
