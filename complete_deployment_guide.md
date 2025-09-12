@@ -152,7 +152,7 @@ npm run dev
 ### 4.3 账号密码登录后台
 1. 浏览器会自动打开后台页面
 2. **使用账号密码登录**：
-   - 访问登录页面：`http://localhost:端口号/loginpwd`
+   - 访问登录页面：`http://localhost:端口号/#/loginpwd`
    - 账号：`admin`
    - 密码：`admin123`
    - 点击登录进入后台
