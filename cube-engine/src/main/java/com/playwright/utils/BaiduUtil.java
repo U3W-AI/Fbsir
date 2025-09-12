@@ -1291,22 +1291,30 @@ public class BaiduUtil {
                 shareButton.click();
                 Thread.sleep(12000);
 
-                shareImgUrl = ScreenshotUtil.downloadAndUploadFile(page, screenshotUtil.uploadUrl, () -> {
-                    String[] copySelectors = {
-                            "button:has-text('下载图片')",
-                    };
+                String[] copySelectors = {
+                        "button:has-text('下载图片')",
+                };
 
-                    Locator copyButton = null;
-                    for (String selector : copySelectors) {
-                        Locator temp = page.locator(selector);
+                Locator copyButton = null;
+                for (String selector : copySelectors) {
+                    Locator temp = page.locator(selector);
 
-                        if (temp.count() > 0) {
-                            copyButton = temp.first();
-                            break;
-                        }
+                    if (temp.count() > 0) {
+                        copyButton = temp.first();
+                        break;
                     }
-                    copyButton.click();
-                });
+                }
+                if(copyButton != null){
+                    final Locator temp = copyButton;
+                    shareImgUrl = ScreenshotUtil.downloadAndUploadFile(page, screenshotUtil.uploadUrl, () -> {
+                        temp.click();
+                    });
+                }else{  // 取消分享界面，回退到默认界面样式，以便后续截图
+                    Locator exit = page.locator("i.cos-icon.cos-icon-close.close-btn_1iln9_41");
+                    if(exit.count()>0){
+                        exit.click();
+                    }
+                }
             }
             // 获取原链接并提取ori_lid
             String originalUrl = getBaiduOriginalUrl(page, userId);
