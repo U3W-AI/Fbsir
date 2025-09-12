@@ -193,26 +193,35 @@ public class DeepSeekUtil {
             boolean isWebSearchMode = roles != null && roles.contains("ds-lwss");
             
             // 根据不同模式设置不同的超时和稳定参数
-            long maxTimeout = 300000; // 默认5分钟（原10分钟减5分钟）
+            long maxTimeout = 300000; // 默认5分钟
             int requiredStableCount = 1; // 默认稳定次数
-            int checkInterval = 200; // 默认检查间隔，降低到200ms
+            int checkInterval = 200; // 默认检查间隔
             
             if (isDeepThinkingMode && isWebSearchMode) {
-                maxTimeout = 1200000; // 深度思考+联网模式20分钟（原25分钟减5分钟）
-                requiredStableCount = 2; // 需要更多的稳定确认，但减少到2次
+                maxTimeout = 1200000; // 深度思考+联网模式20分钟
+                requiredStableCount = 2; // 需要更多的稳定确认
                 checkInterval = 300; // 增加检查间隔
                 logInfo.sendTaskLog("启用深度思考+联网模式监听，等待时间可能较长", userId, aiName);
             } else if (isDeepThinkingMode) {
-                maxTimeout = 900000; // 深度思考模式15分钟（原20分钟减5分钟）
+                maxTimeout = 900000; // 深度思考模式15分钟
                 requiredStableCount = 2; // 需要更多的稳定确认
-                checkInterval = 250; // 增加检查间隔，但降低到250ms
+                checkInterval = 250; // 增加检查间隔
                 logInfo.sendTaskLog("启用深度思考模式监听，等待时间可能较长", userId, aiName);
             } else if (isWebSearchMode) {
-                maxTimeout = 600000; // 联网模式10分钟（原15分钟减5分钟）
+                maxTimeout = 600000; // 联网模式10分钟
                 requiredStableCount = 2; // 需要更多的稳定确认
-                checkInterval = 250; // 增加检查间隔，但降低到250ms
+                checkInterval = 250; // 增加检查间隔
                 logInfo.sendTaskLog("启用联网搜索模式监听", userId, aiName);
             }
+
+            // 等待消息发出后4秒开始检测
+            page.waitForTimeout(4000);
+            logInfo.sendTaskLog("开始检测DeepSeek回复完成状态", userId, aiName);
+
+            // 添加定期截图变量
+            long lastScreenshotTime = System.currentTimeMillis();
+            int screenshotInterval = 6000; // 6秒截图一次
+            boolean hasEverHadContent = false; // 记录是否曾经有过内容
 
             // 进入循环，直到内容不再变化或者超时
             while (true) {
@@ -223,20 +232,32 @@ public class DeepSeekUtil {
                     break;
                 }
 
-                // 获取最新AI回答内容
-                Map<String, Object> responseData = getLatestAiResponseWithDetails(page);
+                // 定期截图（每6秒一次）- 无论什么状态都截图
+                if (System.currentTimeMillis() - lastScreenshotTime >= screenshotInterval) {
+                    try {
+                        screenshotUtil.screenshotAndUpload(page, userId + aiName + "执行过程截图" + ((int)(elapsedTime/1000/6) + 1) + ".png");
+                        lastScreenshotTime = System.currentTimeMillis();
+                        // 移除定期截图日志，减少噪音
+                    } catch (Exception e) {
+                        // 截图失败不影响主流程
+                        logInfo.sendTaskLog("定期截图失败: " + e.getMessage(), userId, aiName);
+                    }
+                }
+
+                // 获取最新AI回答内容 - 使用新的检测逻辑
+                Map<String, Object> responseData = getLatestDeepSeekResponseWithCompletion(page);
                 currentContent = (String) responseData.getOrDefault("content", "");
                 String textContent = (String) responseData.getOrDefault("textContent", "");
+                boolean hasActionButtons = (Boolean) responseData.getOrDefault("hasActionButtons", false);
                 int contentLength = 0;
                 if (responseData.containsKey("length")) {
                     contentLength = ((Number) responseData.get("length")).intValue();
                 }
 
-                // 检查是否有完成标记
-                hasCompletionMarkers = checkForCompletionMarkers(page);
-
                 // 如果成功获取到内容
                 if (currentContent != null && !currentContent.trim().isEmpty()) {
+                    // 标记曾经有过内容
+                    hasEverHadContent = true;
                     // 重置空内容计数
                     emptyCount = 0;
                     
@@ -256,9 +277,9 @@ public class DeepSeekUtil {
                         // 智能判断完成条件
                         boolean isComplete = false;
                         
-                        // 条件1: 如果检测到完成标记
-                        if (hasCompletionMarkers) {
-                            logInfo.sendTaskLog("检测到完成标记，准备提取内容", userId, aiName);
+                        // 条件1: 如果检测到完成按钮组（最重要的判断条件）
+                        if (hasActionButtons) {
+                            logInfo.sendTaskLog("检测到完成按钮组，回复已完成", userId, aiName);
                             isComplete = true;
                         }
                         // 条件2: 内容稳定且不再生成
@@ -272,7 +293,7 @@ public class DeepSeekUtil {
                             else if (contentLength > 500) {
                                 noChangeCount++;
                                 // 如果长内容连续多次没有变化，可以提前结束
-                                if (noChangeCount >= 2) { // 减少到2次
+                                if (noChangeCount >= 2) {
                                     logInfo.sendTaskLog("内容稳定，准备提取", userId, aiName);
                                     isComplete = true;
                                 }
@@ -283,7 +304,7 @@ public class DeepSeekUtil {
                                 isComplete = true;
                             }
                             // 对于短内容，需要更多的稳定确认
-                            else if (stableCount >= requiredStableCount + 1) { // 减少额外等待次数
+                            else if (stableCount >= requiredStableCount + 1) {
                                 logInfo.sendTaskLog("短内容已稳定，准备提取", userId, aiName);
                                 isComplete = true;
                             }
@@ -304,7 +325,7 @@ public class DeepSeekUtil {
                     emptyCount++;
                     
                     // 如果连续多次获取到空内容，检查是否有错误
-                    if (emptyCount > 8) { // 减少到8次
+                    if (emptyCount > 8) {
                         // 检查页面是否有错误提示
                         try {
                             Object errorResult = page.evaluate("""
@@ -328,10 +349,15 @@ public class DeepSeekUtil {
                             // 忽略评估错误
                         }
                         
-                        // 如果没有找到错误但内容持续为空，可能需要重新检查
-                        if (emptyCount > 15) { // 减少到15次
-                            logInfo.sendTaskLog("DeepSeek未返回内容，请检查网络或账号状态", userId, aiName);
-                            return "DeepSeek未返回内容，请检查网络或账号状态";
+                        // 只有在从未有过内容且等待很长时间的情况下才报错
+                        if (!hasEverHadContent && emptyCount > 100) { // 约60秒才输出一次
+                            logInfo.sendTaskLog("长时间未检测到回复，但继续等待...", userId, aiName);
+                            // 不要返回错误，继续等待
+                        }
+                        
+                        // 减少"内容暂时为空"的日志输出频率
+                        if (hasEverHadContent && emptyCount == 10) { // 只在刚开始为空时输出一次
+                            logInfo.sendTaskLog("内容暂时为空，继续等待...", userId, aiName);
                         }
                     }
                 }
@@ -345,8 +371,17 @@ public class DeepSeekUtil {
                 }
             }
 
+            // 最终获取完整的最后一组对话内容
+            String finalContent = getLastConversationContent(page, userId);
+            
+            // 如果最终仍然没有内容，但页面正常，可能是网络问题或正在处理中
+            if ((finalContent == null || finalContent.trim().isEmpty()) && !hasEverHadContent) {
+                logInfo.sendTaskLog("超时未获取到回复内容，可能是网络问题或账号限制", userId, aiName);
+                return "DeepSeek超时未返回内容，请检查网络或账号状态";
+            }
+            
             logInfo.sendTaskLog("DeepSeek内容已自动提取完成", userId, aiName);
-            return currentContent;
+            return finalContent;
 
         } catch (Exception e) {
             logInfo.sendTaskLog("等待AI回答时出错: " + e.getMessage(), userId, aiName);
@@ -1158,6 +1193,7 @@ public class DeepSeekUtil {
     public String saveDeepSeekContent(Page page, UserInfoRequest userInfoRequest, String roleType, String userId, String content) throws Exception{
         try {
             long startTime = System.currentTimeMillis(); // 记录开始时间
+            
             // 1. 从URL提取会话ID和分享链接
             String shareUrl = "";
             String chatId = "";
@@ -1168,9 +1204,9 @@ public class DeepSeekUtil {
                 if (matcher.find()) {
                     chatId = matcher.group(1);
                     shareUrl = "https://chat.deepseek.com/a/chat/s/" + chatId;
-                    userInfoRequest.setYbDsChatId(chatId);
+                    userInfoRequest.setDeepseekChatId(chatId);
                     JSONObject chatData = new JSONObject();
-                    chatData.put("type", "RETURN_YBDS_CHATID");
+                    chatData.put("type", "RETURN_DEEPSEEK_CHATID");
                     chatData.put("chatId", chatId);
                     chatData.put("userId", userId);
                     webSocketClientService.sendMessage(chatData.toJSONString());
@@ -1178,13 +1214,24 @@ public class DeepSeekUtil {
             } catch (Exception e) {
                 // 忽略错误
             }
-            // 2. 只保留AI内容，不加对话包装
+            
+            // 2. 生成最后一组对话的长截图（参考百度的处理方案）
+            String shareImgUrl = null;
+            try {
+                shareImgUrl = captureLastConversationScreenshot(page, userId);
+                logInfo.sendTaskLog("成功生成对话截图", userId, "DeepSeek");
+            } catch (Exception e) {
+                logInfo.sendTaskLog("生成截图失败: " + e.getMessage(), userId, "DeepSeek");
+            }
+            
+            // 3. 只保留AI内容，不加对话包装
             String cleanedContent = cleanDeepSeekContent(content, userId);
             String displayContent = cleanedContent;
             if (cleanedContent == null || cleanedContent.trim().isEmpty()) {
                 displayContent = content;
             }
-            // 3. 设置AI名称
+            
+            // 4. 设置AI名称
             String aiName = "DeepSeek";
             if (roleType != null) {
                 boolean hasDeepThinking = roleType.contains("ds-sdsk");
@@ -1197,13 +1244,15 @@ public class DeepSeekUtil {
                     aiName = "DeepSeek-联网搜索";
                 }
             }
-            // 4. 发送内容到前端
-            logInfo.sendResData(displayContent, userId, "DeepSeek", "RETURN_DEEPSEEK_RES", shareUrl, null);
-            // 5. 保存内容到稿库
+            
+            // 5. 发送内容到前端
+            logInfo.sendResData(displayContent, userId, "DeepSeek", "RETURN_DEEPSEEK_RES", shareUrl, shareImgUrl);
+            
+            // 6. 保存内容到稿库
             userInfoRequest.setDraftContent(displayContent);
             userInfoRequest.setAiName(aiName);
             userInfoRequest.setShareUrl(shareUrl);
-            userInfoRequest.setShareImgUrl(null);
+            userInfoRequest.setShareImgUrl(shareImgUrl);
             Object response = RestUtils.post(url + "/saveDraftContent", userInfoRequest);
             logInfo.sendTaskLog("执行完成", userId, "DeepSeek");
             return displayContent;
@@ -1319,6 +1368,258 @@ public class DeepSeekUtil {
         } catch (Exception e) {
             // 出现异常时记录日志并返回原始内容
             return content;
+        }
+    }
+
+    /**
+     * 获取最新的DeepSeek回答内容，并检查是否包含完成按钮组
+     * @param page Playwright页面对象
+     * @return 包含内容和完成状态的Map
+     */
+    private Map<String, Object> getLatestDeepSeekResponseWithCompletion(Page page) {
+        try {
+            Object jsResult = page.evaluate("""
+            () => {
+                try {
+                    // 查找包含特定class的最新回复区域
+                    const responseContainers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                    if (responseContainers.length === 0) {
+                        return {
+                            content: '',
+                            textContent: '',
+                            length: 0,
+                            hasActionButtons: false,
+                            source: 'no-response-containers',
+                            timestamp: Date.now()
+                        };
+                    }
+                    
+                    // 获取最后一个回复容器（最新的回复）
+                    const latestContainer = responseContainers[responseContainers.length - 1];
+                    
+                    // 检查是否包含操作按钮组
+                    const actionButtonsSelector = 'div.ds-flex._0a3d93b[style*="align-items: center; gap: 10px"] div.ds-flex._965abe9._54866f7';
+                    const hasActionButtons = latestContainer.querySelector(actionButtonsSelector) !== null;
+                    
+                    // 获取markdown内容
+                    const markdownElement = latestContainer.querySelector('.ds-markdown');
+                    if (!markdownElement) {
+                        return {
+                            content: '',
+                            textContent: '',
+                            length: 0,
+                            hasActionButtons: hasActionButtons,
+                            source: 'no-markdown-in-container',
+                            timestamp: Date.now()
+                        };
+                    }
+                    
+                    // 克隆内容以避免修改原DOM
+                    const contentClone = markdownElement.cloneNode(true);
+                    
+                    // 移除不需要的元素
+                    const elementsToRemove = contentClone.querySelectorAll(
+                        'svg, .ds-icon, button, [role="button"], ' +
+                        '[class*="loading"], [class*="typing"], [class*="cursor"], ' +
+                        '.md-code-block-banner, .code-info-button-text'
+                    );
+                    elementsToRemove.forEach(el => el.remove());
+                    
+                    // 获取文本内容
+                    const textContent = contentClone.textContent || '';
+                    const contentLength = textContent.trim().length;
+                    
+                    return {
+                        content: contentClone.innerHTML,
+                        textContent: textContent,
+                        length: contentLength,
+                        hasActionButtons: hasActionButtons,
+                        source: 'latest-container-with-buttons',
+                        timestamp: Date.now()
+                    };
+                } catch (e) {
+                    return {
+                        content: '',
+                        textContent: '',
+                        length: 0,
+                        hasActionButtons: false,
+                        source: 'error',
+                        error: e.toString(),
+                        timestamp: Date.now()
+                    };
+                }
+            }
+            """);
+
+            if (jsResult instanceof Map) {
+                return (Map<String, Object>) jsResult;
+            }
+        } catch (Exception e) {
+            System.err.println("获取DeepSeek回答时出错: " + e.getMessage());
+        }
+
+        return new HashMap<>();
+    }
+
+    /**
+     * 获取最后一组对话内容（参考百度的处理方案）
+     * @param page Playwright页面对象
+     * @param userId 用户ID
+     * @return 最后一组对话的完整内容
+     */
+    private String getLastConversationContent(Page page, String userId) {
+        try {
+            logInfo.sendTaskLog("开始获取最后一组对话内容", userId, "DeepSeek");
+            
+            Object jsResult = page.evaluate("""
+            () => {
+                try {
+                    // 查找所有回复容器
+                    const responseContainers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                    if (responseContainers.length === 0) {
+                        return { content: '', source: 'no-containers' };
+                    }
+                    
+                    // 获取最后一个回复容器（最新的回复）
+                    const latestContainer = responseContainers[responseContainers.length - 1];
+                    
+                    // 克隆容器以避免修改原DOM
+                    const containerClone = latestContainer.cloneNode(true);
+                    
+                    // 移除不需要的交互元素，但保留结构
+                    const elementsToRemove = containerClone.querySelectorAll(
+                        'button, [role="button"], ' +
+                        '[class*="loading"], [class*="typing"], [class*="cursor"], ' +
+                        '.code-info-button-text, ._17e543b'
+                    );
+                    elementsToRemove.forEach(el => el.remove());
+                    
+                    // 清理空的div容器
+                    const emptyDivs = containerClone.querySelectorAll('div:empty');
+                    emptyDivs.forEach(div => div.remove());
+                    
+                    // 获取清理后的HTML内容
+                    const cleanedContent = containerClone.innerHTML;
+                    
+                    return {
+                        content: cleanedContent,
+                        source: 'last-conversation-cleaned',
+                        timestamp: Date.now()
+                    };
+                } catch (e) {
+                    return {
+                        content: '',
+                        source: 'error',
+                        error: e.toString()
+                    };
+                }
+            }
+            """);
+
+            if (jsResult instanceof Map) {
+                Map<String, Object> result = (Map<String, Object>) jsResult;
+                String content = (String) result.getOrDefault("content", "");
+                if (!content.trim().isEmpty()) {
+                    logInfo.sendTaskLog("成功获取最后一组对话内容", userId, "DeepSeek");
+                    return content;
+                }
+            }
+            
+            // 如果上述方法失败，回退到原有方法
+            logInfo.sendTaskLog("回退到原有内容获取方法", userId, "DeepSeek");
+            return getLatestAiResponse(page);
+            
+        } catch (Exception e) {
+            logInfo.sendTaskLog("获取最后一组对话内容时出错: " + e.getMessage(), userId, "DeepSeek");
+            return getLatestAiResponse(page);
+        }
+    }
+
+    /**
+     * 截取最后一组对话的长截图（参考百度的处理方案）
+     * @param page Playwright页面对象
+     * @param userId 用户ID
+     * @return 截图URL
+     */
+    private String captureLastConversationScreenshot(Page page, String userId) throws Exception {
+        try {
+            logInfo.sendTaskLog("开始截取最后一组对话截图", userId, "DeepSeek");
+            
+            // 等待页面稳定
+            page.waitForTimeout(1000);
+            
+            // 使用JavaScript定位最后一组对话区域并截图
+            Object screenshotResult = page.evaluate("""
+                () => {
+                    try {
+                        // 查找所有回复容器
+                        const responseContainers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                        if (responseContainers.length === 0) {
+                            return { success: false, message: 'no-containers' };
+                        }
+                        
+                        // 获取最后一个回复容器（最新的回复）
+                        const latestContainer = responseContainers[responseContainers.length - 1];
+                        
+                        // 滚动到该容器顶部
+                        latestContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        
+                        // 获取容器的边界信息
+                        const rect = latestContainer.getBoundingClientRect();
+                        
+                        return {
+                            success: true,
+                            x: Math.max(0, rect.left),
+                            y: Math.max(0, rect.top),
+                            width: Math.min(rect.width, window.innerWidth),
+                            height: Math.min(rect.height, window.innerHeight)
+                        };
+                    } catch (e) {
+                        return { success: false, message: e.toString() };
+                    }
+                }
+            """);
+            
+            if (screenshotResult instanceof Map) {
+                Map<String, Object> result = (Map<String, Object>) screenshotResult;
+                if (Boolean.TRUE.equals(result.get("success"))) {
+                    // 等待滚动完成
+                    page.waitForTimeout(1500);
+                    
+                    // 进行完整页面截图（因为对话区域可能很长）
+                    String screenshotPath = "deepseek_conversation_" + System.currentTimeMillis() + ".png";
+                    
+                    // 使用全页面截图，确保捕获完整内容
+                    page.screenshot(new Page.ScreenshotOptions()
+                        .setPath(Paths.get(screenshotPath))
+                        .setFullPage(true)
+                        .setType(com.microsoft.playwright.options.ScreenshotType.PNG)
+                    );
+                    
+                                         // 上传截图并返回URL
+                     String uploadedUrl = uploadFile(screenshotUtil.uploadUrl, screenshotPath);
+                     logInfo.sendTaskLog("对话截图已生成并上传", userId, "DeepSeek");
+                     
+                     return uploadedUrl;
+                } else {
+                    logInfo.sendTaskLog("定位对话区域失败: " + result.get("message"), userId, "DeepSeek");
+                }
+            }
+            
+            // 如果上述方法失败，使用简单的全页面截图
+            logInfo.sendTaskLog("使用备用截图方案", userId, "DeepSeek");
+            String fallbackPath = "deepseek_fallback_" + System.currentTimeMillis() + ".png";
+            page.screenshot(new Page.ScreenshotOptions()
+                .setPath(Paths.get(fallbackPath))
+                .setFullPage(true)
+                .setType(com.microsoft.playwright.options.ScreenshotType.PNG)
+            );
+            
+                         return uploadFile(screenshotUtil.uploadUrl, fallbackPath);
+            
+        } catch (Exception e) {
+            logInfo.sendTaskLog("截图过程发生错误: " + e.getMessage(), userId, "DeepSeek");
+            throw e;
         }
     }
 } 

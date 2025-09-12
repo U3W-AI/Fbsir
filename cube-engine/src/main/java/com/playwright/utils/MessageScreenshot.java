@@ -19,9 +19,11 @@ import static com.playwright.utils.ScreenshotUtil.uploadFile;
 
 public class MessageScreenshot {
 
+    /**
+     * 只截取最后一个回复容器的完整内容
+     */
     public String captureMessagesAsLongScreenshot(Page page, String uploadUrl, String userId) {
         String shareImgUrl = "";
-        List<Path> tempImagePaths = new ArrayList<>();
         Path finalScreenshotPath = null;
         ViewportSize originalViewport = null;
 
@@ -29,161 +31,323 @@ public class MessageScreenshot {
             // 保存原始视口大小
             originalViewport = page.viewportSize();
 
-            // 第一步：隐藏或移除可能遮挡内容的固定元素（如输入框）
+            // 隐藏可能遮挡内容的固定元素
             hideFixedElements(page);
 
-            // 定位所有消息元素
-            Locator messageElements = page.locator(".ds-message");
-            int messageCount = messageElements.count();
+            // 查找最后一个回复容器
+            Map<String, Object> containerInfo = (Map<String, Object>) page.evaluate("""
+                () => {
+                    try {
+                        // 查找所有回复容器
+                        const containers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                        if (containers.length === 0) {
+                            return { success: false, message: 'no-containers-found' };
+                        }
+                        
+                        // 获取最后一个容器（最新的回复）
+                        const lastContainer = containers[containers.length - 1];
+                        
+                        // 暂时移除高度限制，获取完整内容高度
+                        const originalStyle = {
+                            height: lastContainer.style.height,
+                            maxHeight: lastContainer.style.maxHeight,
+                            overflow: lastContainer.style.overflow
+                        };
+                        
+                        lastContainer.style.height = 'auto';
+                        lastContainer.style.maxHeight = 'none';
+                        lastContainer.style.overflow = 'visible';
+                        
+                        // 滚动到容器顶部
+                        lastContainer.scrollIntoView({ behavior: 'auto', block: 'start' });
+                        
+                        // 获取容器的完整尺寸信息
+                        const rect = lastContainer.getBoundingClientRect();
+                        const scrollHeight = lastContainer.scrollHeight;
+                        const scrollWidth = lastContainer.scrollWidth;
+                        
+                        // 恢复原始样式
+                        lastContainer.style.height = originalStyle.height;
+                        lastContainer.style.maxHeight = originalStyle.maxHeight;
+                        lastContainer.style.overflow = originalStyle.overflow;
+                        
+                        // 添加一些边距确保内容不被截断
+                        const padding = 40;
+                        const bottomMargin = 120;
+                        
+                        return {
+                            success: true,
+                            x: Math.max(0, rect.x - padding / 2),
+                            y: Math.max(0, rect.y - 20),
+                            width: Math.max(rect.width, scrollWidth) + padding,
+                            height: Math.max(rect.height, scrollHeight) + bottomMargin,
+                            scrollHeight: scrollHeight,
+                            scrollWidth: scrollWidth,
+                            containerCount: containers.length
+                        };
+                    } catch (e) {
+                        return { success: false, message: e.toString() };
+                    }
+                }
+            """);
 
-            if (messageCount == 0) {
-                // 没有找到消息，使用全屏截图作为兜底
+            if (!Boolean.TRUE.equals(containerInfo.get("success"))) {
+                System.err.println("查找最后一个回复容器失败: " + containerInfo.get("message"));
                 return captureFullPageScreenshot(page, uploadUrl);
             }
 
-            // 截图每条消息并保存到临时文件
-            for (int i = 0; i < messageCount; i++) {
-                Locator message = messageElements.nth(i);
+            System.out.println("找到 " + containerInfo.get("containerCount") + " 个回复容器，准备截取最后一个");
 
-                // 确保消息元素在视口中可见
-                message.scrollIntoViewIfNeeded();
-                page.waitForTimeout(500); // 增加等待时间确保内容加载
+            // 获取容器尺寸信息
+            double containerX = getDoubleValue(containerInfo, "x");
+            double containerY = getDoubleValue(containerInfo, "y");
+            double containerWidth = getDoubleValue(containerInfo, "width");
+            double containerHeight = getDoubleValue(containerInfo, "height");
+            double scrollHeight = getDoubleValue(containerInfo, "scrollHeight");
 
-                // 获取消息元素的完整尺寸（包括滚动内容）
-                ElementHandle elementHandle = message.elementHandle();
+            System.out.println(String.format("容器尺寸: x=%.0f, y=%.0f, width=%.0f, height=%.0f, scrollHeight=%.0f", 
+                containerX, containerY, containerWidth, containerHeight, scrollHeight));
 
-                // 使用 Map 来接收 evaluate 的结果
-                Map<String, Object> sizeInfo = (Map<String, Object>) page.evaluate("""
-                    (element) => {
-                        // 保存原始样式
-                        const originalStyles = {
-                            height: element.style.height,
-                            maxHeight: element.style.maxHeight,
-                            overflow: element.style.overflow
-                        };
-                        
-                        // 临时修改样式以确保完整内容可见
-                        element.style.height = 'auto';
-                        element.style.maxHeight = 'none';
-                        element.style.overflow = 'visible';
-                        
-                        // 获取完整尺寸
-                        const rect = element.getBoundingClientRect();
-                        const scrollHeight = element.scrollHeight;
-                        const scrollWidth = element.scrollWidth;
-                        
-                        // 恢复原始样式
-                        element.style.height = originalStyles.height;
-                        element.style.maxHeight = originalStyles.maxHeight;
-                        element.style.overflow = originalStyles.overflow;
-                        
-                        // 增加边距，确保内容不被截断
-                        const padding = 20; // 左右各增加20像素
-                        const bottomMargin = 120; // 底部增加120像素
-                        
-                        return {
-                            x: Math.max(0, rect.x - padding / 2),
-                            y: rect.y,
-                            width: Math.max(rect.width, scrollWidth) + padding,
-                            height: Math.max(rect.height, scrollHeight) + bottomMargin,
-                            fullHeight: scrollHeight,
-                            fullWidth: scrollWidth
-                        };
-                    }
-                """, elementHandle);
-
-                // 安全地从 Map 中提取值，处理 Integer 和 Double 类型
-                double x = getDoubleValue(sizeInfo, "x");
-                double y = getDoubleValue(sizeInfo, "y");
-                double width = getDoubleValue(sizeInfo, "width");
-                double height = getDoubleValue(sizeInfo, "height");
-
-                // 创建临时文件路径
-                Path screenshotPath = Paths.get(System.getProperty("java.io.tmpdir"),
-                        "message_" + i + "_" + UUID.randomUUID() + ".png");
-
-                // 调整视口以确保完整内容可见
-                int neededHeight = (int) Math.ceil(height);
-                int neededWidth = (int) Math.ceil(width);
-
-                // 临时调整视口大小
-                page.setViewportSize(
-                        Math.max(originalViewport.width, neededWidth + 100),
-                        Math.max(originalViewport.height, neededHeight + 100)
-                );
-
-                // 等待视口调整完成
-                page.waitForTimeout(300);
-
-                // 重新获取元素位置（视口调整后可能变化）
-                Map<String, Object> elementRect = (Map<String, Object>) page.evaluate("""
-                    (element) => {
-                        const rect = element.getBoundingClientRect();
-                        return {
-                            x: rect.x,
-                            y: rect.y,
-                            width: rect.width,
-                            height: rect.height
-                        };
-                    }
-                """, elementHandle);
-
-                double finalX = getDoubleValue(elementRect, "x");
-                double finalY = getDoubleValue(elementRect, "y");
-                double finalW = getDoubleValue(elementRect, "width");
-                double finalH = getDoubleValue(elementRect, "height");
-
-                // 确保截图区域不会超出页面边界
-                Object pageSize = page.evaluate("() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })");
-                Map<String, Object> pageSizeMap = (Map<String, Object>) pageSize;
-                double pageWidth = getDoubleValue(pageSizeMap, "width");
-                double pageHeight = getDoubleValue(pageSizeMap, "height");
-
-                // 调整截图区域，确保不超出页面边界
-                double clipX = Math.max(0, finalX);
-                double clipY = Math.max(0, finalY);
-                double clipWidth = Math.min(finalW, pageWidth - clipX);
-                double clipHeight = Math.min(finalH, pageHeight - clipY);
-
-                // 截图当前消息（确保完整内容）
-                page.screenshot(new Page.ScreenshotOptions()
-                        .setPath(screenshotPath)
-                        .setClip(clipX, clipY, clipWidth, clipHeight));
-
-                tempImagePaths.add(screenshotPath);
-
-                // 恢复原始视口大小
-                page.setViewportSize(originalViewport.width, originalViewport.height);
+            // 如果内容高度较小，直接单次截图
+            if (scrollHeight <= 3000) {
+                return captureSingleContainerScreenshot(page, uploadUrl, containerInfo, originalViewport);
+            } else {
+                // 内容很长，使用分段截图然后拼接
+                return captureContainerWithSegments(page, uploadUrl, containerInfo, originalViewport);
             }
 
-            // 将所有消息截图拼接成一张长图
-            finalScreenshotPath = Paths.get(System.getProperty("java.io.tmpdir"),
-                    "combined_" + UUID.randomUUID() + ".png");
-
-            combineImagesVertically(tempImagePaths, finalScreenshotPath);
-
-            // 上传最终的长图
-            String result = uploadFile(uploadUrl, finalScreenshotPath.toString());
-            JSONObject jsonObject = JSONObject.parseObject(result);
-            shareImgUrl = jsonObject.getString("url");
-
         } catch (Exception e) {
-            System.err.println("消息截图失败: " + e.getMessage());
+            System.err.println("截取最后一个回复容器失败: " + e.getMessage());
             e.printStackTrace();
-            // 尝试使用备用方案
-            shareImgUrl = captureFullPageScreenshot(page, uploadUrl);
+            return captureFullPageScreenshot(page, uploadUrl);
         } finally {
-            // 恢复原始视口大小（确保即使出错也恢复）
+            // 恢复原始视口大小
             if (originalViewport != null) {
                 page.setViewportSize(originalViewport.width, originalViewport.height);
             }
-            // 恢复可能被隐藏的元素
+            // 恢复被隐藏的元素
             restoreFixedElements(page);
             // 清理临时文件
-            cleanupTempFiles(tempImagePaths, finalScreenshotPath);
+            if (finalScreenshotPath != null) {
+                try {
+                    Files.deleteIfExists(finalScreenshotPath);
+                } catch (IOException e) {
+                    System.err.println("清理临时文件失败: " + e.getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * 单次截图捕获整个容器（适用于较短的回复）
+     */
+    private String captureSingleContainerScreenshot(Page page, String uploadUrl, Map<String, Object> containerInfo, ViewportSize originalViewport) {
+        try {
+            double containerX = getDoubleValue(containerInfo, "x");
+            double containerY = getDoubleValue(containerInfo, "y");
+            double containerWidth = getDoubleValue(containerInfo, "width");
+            double containerHeight = getDoubleValue(containerInfo, "height");
+
+            // 调整视口大小以适应容器
+            int viewportWidth = Math.max(originalViewport.width, (int) Math.ceil(containerWidth) + 100);
+            int viewportHeight = Math.max(originalViewport.height, (int) Math.ceil(containerHeight) + 100);
+            
+            page.setViewportSize(viewportWidth, viewportHeight);
+            page.waitForTimeout(500);
+
+            // 重新滚动到容器位置
+            page.evaluate("""
+                () => {
+                    const containers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                    if (containers.length > 0) {
+                        const lastContainer = containers[containers.length - 1];
+                        lastContainer.scrollIntoView({ behavior: 'auto', block: 'start' });
+                    }
+                }
+            """);
+            
+            page.waitForTimeout(800);
+
+            // 获取页面边界，确保截图区域不超出页面
+            Map<String, Object> pageSize = (Map<String, Object>) page.evaluate(
+                "() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })"
+            );
+            double pageWidth = getDoubleValue(pageSize, "width");
+            double pageHeight = getDoubleValue(pageSize, "height");
+
+            // 调整截图区域
+            double clipX = Math.max(0, containerX);
+            double clipY = Math.max(0, containerY);
+            double clipWidth = Math.min(containerWidth, pageWidth - clipX);
+            double clipHeight = Math.min(containerHeight, pageHeight - clipY);
+
+            // 创建截图路径
+            Path screenshotPath = Paths.get(System.getProperty("java.io.tmpdir"),
+                    "deepseek_last_reply_" + UUID.randomUUID() + ".png");
+
+            // 截图
+            page.screenshot(new Page.ScreenshotOptions()
+                    .setPath(screenshotPath)
+                    .setClip(clipX, clipY, clipWidth, clipHeight));
+
+            // 上传并获取URL
+            String result = uploadFile(uploadUrl, screenshotPath.toString());
+            JSONObject jsonObject = JSONObject.parseObject(result);
+            String shareImgUrl = jsonObject.getString("url");
+
+            // 清理临时文件
+            Files.deleteIfExists(screenshotPath);
+
+            System.out.println("单次截图完成: " + shareImgUrl);
+            return shareImgUrl;
+
+        } catch (Exception e) {
+            System.err.println("单次截图失败: " + e.getMessage());
+            return captureFullPageScreenshot(page, uploadUrl);
+        }
+    }
+
+    /**
+     * 分段截图然后拼接（适用于很长的回复）
+     */
+    private String captureContainerWithSegments(Page page, String uploadUrl, Map<String, Object> containerInfo, ViewportSize originalViewport) {
+        List<Path> segmentPaths = new ArrayList<>();
+        Path finalPath = null;
+
+        try {
+            double containerHeight = getDoubleValue(containerInfo, "scrollHeight");
+            double containerWidth = getDoubleValue(containerInfo, "width");
+            
+            // 每段的高度（避免过大的截图）
+            int segmentHeight = 2000;
+            int totalSegments = (int) Math.ceil(containerHeight / segmentHeight);
+            
+            System.out.println(String.format("容器总高度: %.0f, 分为 %d 段截图", containerHeight, totalSegments));
+
+            // 调整视口以适应宽度
+            page.setViewportSize(
+                Math.max(originalViewport.width, (int) containerWidth + 100),
+                Math.max(originalViewport.height, segmentHeight + 100)
+            );
+            page.waitForTimeout(500);
+
+            // 分段截图
+            for (int i = 0; i < totalSegments; i++) {
+                // 计算当前段的滚动位置
+                int scrollOffset = i * segmentHeight;
+                
+                // 滚动到指定位置
+                page.evaluate(String.format("""
+                    (scrollOffset) => {
+                        const containers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                        if (containers.length > 0) {
+                            const lastContainer = containers[containers.length - 1];
+                            lastContainer.scrollTop = scrollOffset;
+                            
+                            // 同时滚动页面确保容器可见
+                            const rect = lastContainer.getBoundingClientRect();
+                            if (rect.top < 0 || rect.bottom > window.innerHeight) {
+                                lastContainer.scrollIntoView({ behavior: 'auto', block: 'center' });
+                            }
+                        }
+                    }
+                """, scrollOffset));
+                
+                page.waitForTimeout(300);
+
+                // 获取当前段的截图区域
+                Map<String, Object> segmentInfo = (Map<String, Object>) page.evaluate(String.format("""
+                    (segmentIndex, segmentHeight) => {
+                        const containers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                        if (containers.length === 0) return null;
+                        
+                        const lastContainer = containers[containers.length - 1];
+                        const rect = lastContainer.getBoundingClientRect();
+                        
+                        // 安全检查所有数值，避免 NaN
+                        const safeValue = (val, defaultVal = 0) => {
+                            return (isNaN(val) || !isFinite(val)) ? defaultVal : val;
+                        };
+                        
+                        // 计算当前段的实际高度
+                        const scrollHeight = safeValue(lastContainer.scrollHeight, 1000);
+                        const remainingHeight = scrollHeight - (segmentIndex * segmentHeight);
+                        const actualSegmentHeight = Math.max(100, Math.min(segmentHeight, remainingHeight));
+                        
+                        return {
+                            x: safeValue(Math.max(0, rect.x - 20)),
+                            y: safeValue(Math.max(0, rect.y)),
+                            width: safeValue(rect.width + 40, 800),
+                            height: safeValue(Math.min(actualSegmentHeight + 70, rect.height), 600),
+                            scrollTop: safeValue(lastContainer.scrollTop)
+                        };
+                    }
+                """, i, segmentHeight));
+
+                if (segmentInfo == null) continue;
+
+                double segX = getDoubleValue(segmentInfo, "x");
+                double segY = getDoubleValue(segmentInfo, "y");
+                double segWidth = getDoubleValue(segmentInfo, "width");
+                double segHeight = getDoubleValue(segmentInfo, "height");
+
+                // 验证截图参数的有效性
+                if (segWidth <= 0 || segHeight <= 0) {
+                    System.err.println(String.format("跳过无效的截图参数: x=%f, y=%f, width=%f, height=%f", 
+                            segX, segY, segWidth, segHeight));
+                    continue;
+                }
+
+                // 创建段截图路径
+                Path segmentPath = Paths.get(System.getProperty("java.io.tmpdir"),
+                        "segment_" + i + "_" + UUID.randomUUID() + ".png");
+
+                try {
+                    // 截图当前段
+                    page.screenshot(new Page.ScreenshotOptions()
+                            .setPath(segmentPath)
+                            .setClip(segX, segY, segWidth, segHeight));
+                    
+                    segmentPaths.add(segmentPath);
+                    System.out.println(String.format("完成第 %d/%d 段截图", i + 1, totalSegments));
+                } catch (Exception e) {
+                    System.err.println(String.format("第 %d 段截图失败: %s", i + 1, e.getMessage()));
+                    // 继续下一段截图，不中断整个流程
+                }
+            }
+
+            // 拼接所有段
+            if (!segmentPaths.isEmpty()) {
+                try {
+                    finalPath = Paths.get(System.getProperty("java.io.tmpdir"),
+                            "deepseek_combined_" + UUID.randomUUID() + ".png");
+                    
+                    combineImagesVertically(segmentPaths, finalPath);
+
+                    // 上传拼接后的图片
+                    String result = uploadFile(uploadUrl, finalPath.toString());
+                    JSONObject jsonObject = JSONObject.parseObject(result);
+                    String shareImgUrl = jsonObject.getString("url");
+
+                    System.out.println("分段截图拼接完成: " + shareImgUrl);
+                    return shareImgUrl;
+                } catch (Exception e) {
+                    System.err.println("分段截图拼接失败: " + e.getMessage());
+                    // 继续执行，最后会回退到全屏截图
+                }
+            } else {
+                System.err.println("所有分段截图都失败，回退到全屏截图");
+            }
+
+        } catch (Exception e) {
+            System.err.println("分段截图失败: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            // 清理所有临时文件
+            cleanupTempFiles(segmentPaths, finalPath);
         }
 
-        return shareImgUrl;
+        return captureFullPageScreenshot(page, uploadUrl);
     }
 
     /**
@@ -253,15 +417,25 @@ public class MessageScreenshot {
      */
     private double getDoubleValue(Map<String, Object> map, String key) {
         Object value = map.get(key);
+        double result = 0.0;
+        
         if (value instanceof Integer) {
-            return ((Integer) value).doubleValue();
+            result = ((Integer) value).doubleValue();
         } else if (value instanceof Double) {
-            return (Double) value;
+            result = (Double) value;
         } else if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+            result = ((Number) value).doubleValue();
         } else {
             throw new IllegalArgumentException("无法将值转换为 double: " + value);
         }
+        
+        // 检查并处理 NaN 和无穷大值
+        if (Double.isNaN(result) || Double.isInfinite(result)) {
+            System.err.println("警告: 检测到无效数值 " + key + "=" + result + "，使用默认值 0.0");
+            return 0.0;
+        }
+        
+        return result;
     }
 
     /**

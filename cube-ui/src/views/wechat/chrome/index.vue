@@ -390,6 +390,7 @@
           dbChatId: "",
           tyChatId: "",
           baiduChatId: "",
+          deepseekChatId: "",
 
 
           isNewChat: true,
@@ -941,7 +942,7 @@
         } else if(dataObj.type === "RETURN_BAIDU_CHATID" && dataObj.chatId) {
           this.userInfoReq.baiduChatId = dataObj.chatId;
         } else if(dataObj.type === "RETURN_DEEPSEEK_CHATID" && dataObj.chatId) {
-          this.userInfoReq.deepSeekChatId = dataObj.chatId;
+          this.userInfoReq.deepseekChatId = dataObj.chatId;
         }
         // else if (dataObj.type === 'RETURN_TY_CHATID' && dataObj.chatId) {
         //   this.userInfoReq.tyChatId = dataObj.chatId;
@@ -1349,6 +1350,7 @@
           this.userInfoReq.toneChatId = item.toneChatId || "";
           this.userInfoReq.ybDsChatId = item.ybDsChatId || "";
           this.userInfoReq.dbChatId = item.dbChatId || "";
+          this.userInfoReq.deepseekChatId = item.deepseekChatId || "";
           this.userInfoReq.maxChatId = item.maxChatId || "";
 
           // this.userInfoReq.tyChatId = item.tyChatId || "";
@@ -1383,6 +1385,7 @@
           toneChatId: this.userInfoReq.toneChatId,
           ybDsChatId: this.userInfoReq.ybDsChatId,
           dbChatId: this.userInfoReq.dbChatId,
+          deepseekChatId: this.userInfoReq.deepseekChatId,
           // tyChatId: this.userInfoReq.tyChatId,
           maxChatId: this.userInfoReq.maxChatId,
 
@@ -1398,6 +1401,7 @@
             toneChatId: this.userInfoReq.toneChatId,
             ybDsChatId: this.userInfoReq.ybDsChatId,
             dbChatId: this.userInfoReq.dbChatId,
+            deepseekChatId: this.userInfoReq.deepseekChatId,
             // tyChatId: this.userInfoReq.tyChatId,
             maxChatId: this.userInfoReq.maxChatId,
 
@@ -1446,6 +1450,7 @@
           ybDsChatId: "",
           dbChatId: "",
           baiduChatId: "",
+          deepseekChatId: "",
           // tyChatId: "",
           maxChatId: "",
           isNewChat: true,

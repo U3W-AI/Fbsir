@@ -63,7 +63,8 @@ public class MyWebSocketHandler extends TextWebSocketHandler {
 
         // 判断是否为心跳消息
         if (payload.contains("heartbeat")) {
-            System.out.println("心跳检查：" + clientId);
+            // 减少心跳日志输出，只在DEBUG模式下显示
+            // System.out.println("心跳检查：" + clientId);
             return;
         }
 

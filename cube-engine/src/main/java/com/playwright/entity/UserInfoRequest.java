@@ -45,6 +45,9 @@ public class UserInfoRequest {
     @ToolParam(description = "百度AI的聊天会话 ID",required = false)
     private String baiduChatId;
 
+    @ToolParam(description = "DeepSeek AI的聊天会话 ID",required = false)
+    private String deepseekChatId;
+
     @ToolParam(description = "是否为新对话。true 表示清空上下文重新开始", required = false)
     private String isNewChat;
 

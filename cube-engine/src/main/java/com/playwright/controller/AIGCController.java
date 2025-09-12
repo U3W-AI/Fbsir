@@ -790,7 +790,7 @@ public class AIGCController {
     public McpResult startDS(@RequestBody UserInfoRequest userInfoRequest) throws InterruptedException, IOException {
 
         String userId = userInfoRequest.getUserId();
-        String chatId = userInfoRequest.getDbChatId();
+        String chatId = userInfoRequest.getDeepseekChatId();
         String userPrompt = userInfoRequest.getUserPrompt();
         String isNewChat = userInfoRequest.getIsNewChat();
         String roles = userInfoRequest.getRoles();
@@ -1011,7 +1011,7 @@ public class AIGCController {
 
 
             logInfo.sendTaskLog("执行完成", userId, "DeepSeek");
-            logInfo.sendChatData(page, "/chat/([^/?#]+)", userId, "RETURN_DEEPSEEK_CHATID", 1);
+            logInfo.sendChatData(page, "/chat/s/([^/?#]+)", userId, "RETURN_DEEPSEEK_CHATID", 1);
 
             logInfo.sendResData(copiedText, userId, "DeepSeek", "RETURN_DEEPSEEK_RES", shareUrl, shareImgUrl);
 
