@@ -64,6 +64,11 @@ public class BrowserController {
     @Operation(summary = "检查DeepSeek登录状态", description = "返回手机号表示已登录，false 表示未登录")
     @GetMapping("/checkDSLogin")
     public String checkDSLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
+        String key = userId + "-ds";
+        if (loginMap.containsKey(key)) {
+            // 如果当前用户正在处理，则返回"处理中"
+            return loginMap.get(key);
+        }
         try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "deepseek")) {
             Page page = browserUtil.getOrCreatePage(context);
 
@@ -76,8 +81,9 @@ public class BrowserController {
             String loginStatus = deepSeekUtil.checkLoginStatus(page, false);
 
             // 如果检测到已登录，直接返回
-            if (!"false".equals(loginStatus)) {
+            if (!"false".equals(loginStatus) || !"未登录".equals(loginStatus)) {
                 logMsgUtil.sendTaskLog("DeepSeek已登录，用户: " + loginStatus, userId, "DeepSeek");
+                loginMap.put(key, loginStatus);
                 return loginStatus;
             }
 
@@ -183,12 +189,16 @@ public class BrowserController {
     @GetMapping("/checkLogin")
     public String checkYBLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
         try {
+            String key = userId + "-yb";
 //            加锁，同一个用户只能有一个检查
-            if ((loginMap.get(userId) == null || loginMap.get(userId).contains("未登录")) && lockMap.get(userId) == null) {
-                loginMap.remove(userId);
-                lockMap.put(userId, 1);
+            if ((loginMap.get(key) == null || loginMap.get(key).contains("未登录")) && lockMap.get(key) == null) {
+                loginMap.remove(key);
+                lockMap.put(key, 1);
                 UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
-                BrowserContext browserContext = browserContextInfo.getBrowserContext();
+                BrowserContext browserContext = null;
+                if (browserContextInfo != null) {
+                    browserContext = browserContextInfo.getBrowserContext();
+                }
                 Page page = browserContext.pages().get(0);
                 page.navigate("https://yuanbao.tencent.com/chat/naQivTmsDa/");
                 page.waitForLoadState(LoadState.LOAD);
@@ -197,29 +207,29 @@ public class BrowserController {
                 if (phone.count() > 0) {
                     String phoneText = phone.textContent();
                     if (phoneText.equals("未登录")) {
-                        loginMap.put(userId, "未登录");
-                        lockMap.remove(userId);
+                        loginMap.put(key, "未登录");
+                        lockMap.remove(key);
                         return "false";
                     }
-                    loginMap.put(userId, phoneText);
-                    lockMap.remove(userId);
+                    loginMap.put(key, phoneText);
+                    lockMap.remove(key);
                     return phoneText;
                 } else {
-                    loginMap.put(userId, "未登录");
-                    lockMap.remove(userId);
+                    loginMap.put(key, "未登录");
+                    lockMap.remove(key);
                     return "false";
                 }
             } else {
                 log.info("已有其他线程检测,等待登录状态变化");
                 // 等待其他线程检测登录状态
                 for (int i = 0; i < 10; i++) {
-                    if (loginMap.get(userId) != null) {
-                        if (loginMap.get(userId).contains("未登录")) {
+                    if (loginMap.get(key) != null) {
+                        if (loginMap.get(key).contains("未登录")) {
                             log.info("检测到未登录");
                             return "false";
                         } else {
                             log.info("检测到已登录");
-                            return loginMap.get(userId);
+                            return loginMap.get(key);
                         }
                     }
                     Thread.sleep(3000);
@@ -301,6 +311,11 @@ public class BrowserController {
     @Operation(summary = "检查豆包登录状态", description = "返回手机号表示已登录，false 表示未登录")
     @GetMapping("/checkDBLogin")
     public String checkDBLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
+        String key = userId + "-db";
+        if (loginMap.containsKey(key)) {
+            // 如果当前用户正在处理，则返回"处理中"
+            return loginMap.get(key);
+        }
         try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "db")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://www.doubao.com/chat/");
@@ -318,6 +333,7 @@ public class BrowserController {
                 Locator phone = page.locator(".nickName-cIcGuG");
                 if (phone.count() > 0) {
                     String phoneText = phone.textContent();
+                    loginMap.put(key, phoneText);
                     return phoneText;
                 } else {
                     return "false";
@@ -399,13 +415,18 @@ public class BrowserController {
     @Operation(summary = "检查百度AI登录状态", description = "返回用户名/手机号表示已登录，false 表示未登录")
     @GetMapping("/checkBaiduLogin")
     public String checkBaiduLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws Exception {
+        String key = userId + "-bd";
+        if (loginMap.containsKey(key)) {
+            // 如果当前用户正在处理，则返回"处理中"
+            return loginMap.get(key);
+        }
         try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "baidu")) {
             Page page = browserUtil.getOrCreatePage(context);
-
             // 使用BaiduUtil检查登录状态
             String loginStatus = baiduUtil.checkBaiduLogin(page, true);
 
-            if (!"false".equals(loginStatus)) {
+            if (!"false".equals(loginStatus) && !"未登录".equals(loginStatus)) {
+                loginMap.put(key, loginStatus);
                 return loginStatus; // 返回用户名或登录状态
             } else {
                 return "false"; // 未登录

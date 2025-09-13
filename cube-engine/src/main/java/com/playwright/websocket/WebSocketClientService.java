@@ -10,6 +10,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.playwright.controller.*;
 import com.playwright.entity.UserInfoRequest;
+import com.playwright.entity.mcp.McpResult;
 import com.playwright.mcp.CubeMcp;
 import com.playwright.utils.BrowserConcurrencyManager;
 import com.playwright.utils.BrowserTaskWrapper;
@@ -23,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -85,6 +87,7 @@ public class WebSocketClientService {
                     startHeartbeatTask();
                 }
 
+
                 /**
                  * 当接收到消息时调用
                  */
@@ -98,14 +101,21 @@ public class WebSocketClientService {
                     CubeMcp cubeMcp = SpringContextUtils.getBean(CubeMcp.class);
                     // 打印当前并发状态
                     taskWrapper.printStatus();
-
+                    String aiName = userInfoRequest.getAiName();
                     // 处理包含"使用F8S"的消息
                     if(message.contains("使用F8S")){
                         // 处理包含"yb-hunyuan"或"yb-deepseek"的消息
                         if(message.contains("yb-hunyuan-pt") || message.contains("yb-deepseek-pt")){
                             concurrencyManager.submitBrowserTask(() -> {
                                 try {
-                                    aigcController.startYB(userInfoRequest);
+//                                    新增检查登录状态
+                                    String status = browserController.checkYBLogin(userInfoRequest.getUserId());
+                                    if(status.equals("未登录") || status.equals("false")) {
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录元宝",null), aiName);
+                                        return;
+                                    }
+                                    McpResult mcpResult = aigcController.startYB(userInfoRequest);
+                                    sendMessage(userInfoRequest,mcpResult, aiName);
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -115,7 +125,13 @@ public class WebSocketClientService {
                         if(message.contains("zj-db")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 try {
-                                    aigcController.startDB(userInfoRequest);
+                                    String status = browserController.checkDBLogin(userInfoRequest.getUserId());
+                                    if(status.equals("未登录") || status.equals("false")) {
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录豆包",null), aiName);
+                                        return;
+                                    }
+                                    McpResult mcpResult = aigcController.startDB(userInfoRequest);
+                                    sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -126,17 +142,29 @@ public class WebSocketClientService {
                         if(userInfoRequest.getRoles() != null && userInfoRequest.getRoles().contains("baidu-agent")){
                             concurrencyManager.submitBrowserTask(() -> {
                                 try {
-                                    aigcController.startBaidu(userInfoRequest);
+                                    String status = browserController.checkBaiduLogin(userInfoRequest.getUserId());
+                                    if(status.equals("未登录") || status.equals("false")) {
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录百度AI",null), aiName);
+                                        return;
+                                    }
+                                    McpResult mcpResult = aigcController.startBaidu(userInfoRequest);
+                                    sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
                             }, "百度AI", userInfoRequest.getUserId());
                         }
                         // 处理包含"deepseek"的消息
-                        if(message.contains("deepseek")){
+                        if(message.contains("deepseek,")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 try {
-                                    aigcController.startDS(userInfoRequest);
+                                    String status = browserController.checkDSLogin(userInfoRequest.getUserId());
+                                    if(status.equals("未登录") || status.equals("false")) {
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录deepseek",null), aiName);
+                                        return;
+                                    }
+                                    McpResult mcpResult = aigcController.startDS(userInfoRequest);
+                                    sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
                                     e.printStackTrace();
                                 }
@@ -386,6 +414,29 @@ public class WebSocketClientService {
     public void sendMessage(String message) {
         if (webSocketClient != null && webSocketClient.isOpen()) {
             webSocketClient.send(message);
+        }
+    }
+
+    /**
+     * 用于区分消息的方法
+     */
+    public void sendMessage(UserInfoRequest userInfoRequest, McpResult mcpResult, String aiName) {
+        Map<String, String> content = new HashMap<>();
+        content.put("type",  userInfoRequest.getType());
+        content.put("userId", userInfoRequest.getUserId());
+        content.put("aiName", aiName);
+        content.put("taskId", userInfoRequest.getTaskId());
+        if("openAI".equals(userInfoRequest.getType()))  {
+            String result = mcpResult.getResult();
+            if(result == null || result.isEmpty()) {
+                result = aiName + "执行错误,请稍后重试";
+            }
+            content.put("message", result);
+        } else{
+//            TODO 其他情况
+        }
+        if (webSocketClient != null && webSocketClient.isOpen()) {
+            webSocketClient.send(JSONObject.toJSONString(content));
         }
     }
 }
