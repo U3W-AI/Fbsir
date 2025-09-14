@@ -298,7 +298,7 @@ public class AIGCController {
             // 等待复制按钮出现并点击
 //            String copiedText =  douBaoUtil.waitAndClickDBCopyButton(page,userId,roles);
             //等待html片段获取完成
-            String copiedText = douBaoUtil.waitDBHtmlDom(page, userId, "智能评分");
+            String copiedText = douBaoUtil.waitDBHtmlDom(page, userId, "智能评分", userInfoRequest);
             //关闭截图
             screenshotFuture.cancel(false);
             screenshotExecutor.shutdown();
@@ -461,7 +461,7 @@ public class AIGCController {
             // 等待复制按钮出现并点击
 //            String copiedText =  douBaoUtil.waitAndClickDBCopyButton(page,userId,roles);
             //等待html片段获取完成
-            String copiedText = douBaoUtil.waitDBHtmlDom(page, userId, "豆包");
+            String copiedText = douBaoUtil.waitDBHtmlDom(page, userId, "豆包", userInfoRequest);
             //关闭截图
             screenshotFuture.cancel(false);
             screenshotExecutor.shutdown();

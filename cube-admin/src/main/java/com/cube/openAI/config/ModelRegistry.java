@@ -14,11 +14,11 @@ public class ModelRegistry {
 
     // 初始化时注册所有模型
     public ModelRegistry() {
-        modelMap.put("model-baiDuAI", new BaiDuAI());
-        modelMap.put("model-deepseek", new DeepSeek());
-        modelMap.put("model-douBao", new DouBao());
-        modelMap.put("model-yuanBaoT1", new YuanBaoT1());
-        modelMap.put("model-yuanBaoDS", new YuanBaoDS());
+        modelMap.put("bai_du", new BaiDuAI());
+        modelMap.put("deepseek", new DeepSeek());
+        modelMap.put("dou_bao", new DouBao());
+        modelMap.put("yuan_bao_T1", new YuanBaoT1());
+        modelMap.put("yuan_bao_DS", new YuanBaoDS());
     }
 
     // 根据model名称获取模型实例

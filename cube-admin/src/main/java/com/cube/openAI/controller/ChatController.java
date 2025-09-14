@@ -1,5 +1,6 @@
 package com.cube.openAI.controller;
 
+import com.cube.openAI.constants.OpenAIExceptionConstants;
 import com.cube.openAI.pojos.ChatCompletionRequest;
 import com.cube.openAI.pojos.ChatCompletionResponse;
 import com.cube.openAI.pojos.ChatCompletionStreamResponse;
@@ -32,57 +33,25 @@ public class ChatController {
 
     @Autowired
     private ModelRegistry modelRegistry;
-    @Autowired
-    private ObjectMapper objectMapper;
 
     // 核心接口：兼容OpenAI的聊天接口
     @PostMapping(value = "/chat/completions",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE + ";charset=UTF-8")
     public Object createCompletion(
             @Valid @RequestBody ChatCompletionRequest request) {
-        // 1. 验证是否需要流式输出
-        if (request.isStream()) {
-            String id = "chatcmpl-" + UUID.randomUUID().toString().substring(0, 10);
-            long timestamp = System.currentTimeMillis() / 1000;
-
-            // 模拟AI生成的内容
-            String fullResponse = "这是一个流式输出的示例。"
-                    + "AI模型暂时不支持流式输出！";
-            String[] chunks = fullResponse.split("。");
-
-            return Flux.range(0, chunks.length)
-                    .delayElements(Duration.ofMillis(300))
-                    .map(i -> {
-                        try {
-                            // 构建响应对象
-                            ChatCompletionStreamResponse response = ChatCompletionStreamResponse.builder()
-                                    .id(id)
-                                    .object("chat.completion.chunk")
-                                    .created(timestamp)
-                                    .model(request.getModel())
-                                    .choices(List.of(
-                                            ChatCompletionStreamResponse.Choice.builder()
-                                                    .index(0)
-                                                    .delta(ChatCompletionStreamResponse.Delta.builder()
-                                                            .content(chunks[i] + "。")
-                                                            .build())
-                                                    .finishReason(i == chunks.length - 1 ? "stop" : null)
-                                                    .build()
-                                    ))
-                                    .build();
-
-                            // 关键修复：直接返回JSON字符串，不带data:前缀和\n\n后缀
-                            return objectMapper.writeValueAsString(response);
-                        } catch (Exception e) {
-                            return "{\"error\": {\"message\": \"序列化失败: " + e.getMessage() + "\"}}";
-                        }
-                    });
-        }
 
         // 1. 验证模型是否存在
         var model = modelRegistry.getModel(request.getModel());
         if (model == null) {
-            throw new IllegalArgumentException("模型不存在：" + request.getModel());
+            throw new IllegalArgumentException(OpenAIExceptionConstants.MODEL_NOT_FOUND + ":" + request.getModel());
+        }
+        // 1. 验证是否需要流式输出
+        if (request.isStream()) {
+            return model.generateByStream(
+                    request.getMessages(),
+                    request.getTemperature(),
+                    request.getMaxTokens()
+            );
         }
 
         // 2. 调用模型生成结果
