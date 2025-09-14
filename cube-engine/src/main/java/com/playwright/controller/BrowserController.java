@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.LoadState;
 import com.playwright.entity.UnPersisBrowserContextInfo;
 import com.playwright.utils.*;
@@ -39,7 +40,6 @@ public class BrowserController {
     @Value("${cube.url}")
     private String logUrl;
 
-
     @Autowired
     private LogMsgUtil logMsgUtil;
 
@@ -54,6 +54,174 @@ public class BrowserController {
 
     public static final ConcurrentHashMap<String, String> loginMap = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Integer> lockMap = new ConcurrentHashMap<>();
+
+
+    /**
+     * 获取秘塔登录二维码
+     * @param userId 用户唯一标识
+     * @return 二维码图片URL 或 "false"表示失败
+     */
+    @Operation(summary = "获取秘塔登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
+    @GetMapping("/getMetasoQrCode")
+    public String getMetasoQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException, IOException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"metaso")) {
+            Page page = browserUtil.getOrCreatePage(context);
+            page.navigate("https://metaso.cn/");
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("登录/注册")).click();
+            Thread.sleep(3000);
+            String url = screenshotUtil.screenshotAndUpload(page,"checkMetasoLogin.png");
+
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("url",url);
+            jsonObject.put("userId",userId);
+            jsonObject.put("type","RETURN_PC_METASO_QRURL");
+            // 发送二维码URL
+            webSocketClientService.sendMessage(jsonObject.toJSONString());
+            //  查找登录后的元素是否存在，不存在则发送登录成功的消息
+            Thread.sleep(3000);
+            Locator login = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
+            Locator phone = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
+            login.waitFor(new Locator.WaitForOptions().setTimeout(60000));
+            Thread.sleep(3000);
+            if (phone.count() > 0){
+                JSONObject jsonObjectTwo = new JSONObject();
+                jsonObjectTwo.put("status",phone.textContent());
+                jsonObjectTwo.put("userId",userId);
+                jsonObjectTwo.put("type","RETURN_METASO_STATUS");
+                webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
+            }
+
+            return url;
+
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    /**
+     * 检查秘塔登录状态
+     * @param userId 用户唯一标识
+     * @return 登录状态："false"表示未登录，手机号表示已登录
+     */
+    @Operation(summary = "检查秘塔登录状态", description = "返回登录表示已登录，false 表示未登录")
+    @GetMapping("/checkMetasoLogin")
+    public String checkMetasoLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"metaso")) {
+            Page page = browserUtil.getOrCreatePage(context);
+            page.navigate("https://metaso.cn/");
+            Thread.sleep(5000);
+            Locator loginButton = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("登录/注册"));
+
+            if(loginButton.count() > 0 && loginButton.isVisible()){
+                // 存在登录按钮，未登录
+                return "false";
+            } else {
+                Thread.sleep(500);
+                Locator phone = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
+                if(phone.count()>0){
+                    String phoneText = phone.textContent();
+                    return phoneText;
+                } else {
+                    return "false";
+                }
+            }
+
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+
+
+    /**
+     * 检查通义AI登录状态
+     * @param userId 用户唯一标识
+     * @return 登录状态："false"表示未登录，加密的用户名/手机号表示已登录
+     */
+    @Operation(summary = "检查通义AI登录状态", description = "返回用户名/手机号表示已登录，false 表示未登录")
+    @GetMapping("/checkTongYiLogin")
+    public String checkTongYiLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "ty")) {
+            Page page = browserUtil.getOrCreatePage(context);
+            page.navigate("https://www.tongyi.com/");
+            page.waitForTimeout(5000);
+
+            Locator loginButton = page.locator("//*[@id=\"new-nav-tab-wrapper\"]/div[2]/li");
+
+            if (loginButton.count() > 0 && loginButton.isVisible()) {
+                // 如果找到“登录”按钮，说明未登录
+                return "false";
+            } else {
+                Locator userAvatarArea = page.locator(".popupUser");
+                if (userAvatarArea.count() > 0) {
+                    userAvatarArea.hover();
+                    page.waitForTimeout(1000);
+
+                    Locator userNameElement = page.locator(".userName");
+                    if (userNameElement.count() > 0 && userNameElement.isVisible()) {
+                        // 返回获取到的用户名
+                        return userNameElement.textContent();
+                    }
+                }
+                return "false";
+            }
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    /**
+     * 获取通义千问登录二维码
+     * @param userId 用户唯一标识
+     * @return 二维码图片URL 或 "false"表示失败
+     */
+    @Operation(summary = "获取通义千问登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
+    @GetMapping("/getTongYiQrCode")
+    public String getTongYiQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws IOException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "ty")) {
+            Page page = browserUtil.getOrCreatePage(context);
+            page.navigate("https://www.tongyi.com/");
+            page.waitForTimeout(3000);
+//            Locator loginButton = page.locator("(//button[contains(text(),'立即登录')])");
+            Locator loginButton = page.locator("(//span[contains(text(),'立即登录')])[1]");
+            if (loginButton.count() > 0 && loginButton.isVisible()) {
+                loginButton.click();
+                page.waitForTimeout(2000);
+                page.locator("div[class*='qrcodeWrapper']").last().waitFor(new Locator.WaitForOptions().setTimeout(10000));
+
+                String url = screenshotUtil.screenshotAndUpload(page, "checkTongYiLogin.png");
+
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("url", url);
+                jsonObject.put("userId", userId);
+                jsonObject.put("type", "RETURN_PC_QW_QRURL");
+                webSocketClientService.sendMessage(jsonObject.toJSONString());
+
+                Locator userAvatarArea = page.locator(".popupUser");
+                userAvatarArea.waitFor(new Locator.WaitForOptions().setTimeout(60000));
+
+                page.waitForTimeout(3000);
+
+                if (userAvatarArea.count() > 0) {
+                    userAvatarArea.hover();
+                    page.waitForTimeout(1000);
+
+                    Locator userNameElement = page.locator(".userName");
+                    if (userNameElement.count() > 0 && userNameElement.isVisible()) {
+                        JSONObject jsonObjectTwo = new JSONObject();
+                        jsonObjectTwo.put("status", userNameElement.textContent());
+                        jsonObjectTwo.put("userId", userId);
+                        jsonObjectTwo.put("type", "RETURN_TY_STATUS");
+                        webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw e;
+        }
+        return "false";
+    }
+
 
     /**
      * 检查DeepSeek登录状态
@@ -325,12 +493,12 @@ public class BrowserController {
                 return "false";
             } else {
                 Thread.sleep(500);
-
                 page.locator("[data-testid=\"chat_header_avatar_button\"]").click();
                 Thread.sleep(500);
                 page.locator("[data-testid=\"chat_header_setting_button\"]").click();
-                Thread.sleep(500);
+//                Thread.sleep(1500);
                 Locator phone = page.locator(".nickName-cIcGuG");
+                phone.waitFor(new Locator.WaitForOptions().setTimeout(3000));
                 if (phone.count() > 0) {
                     String phoneText = phone.textContent();
                     loginMap.put(key, phoneText);

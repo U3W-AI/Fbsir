@@ -45,17 +45,18 @@
               </div>
               <!-- 预览内容 -->
               <div class="preview-content" v-if="model.name == '百度对话AI'">
-                <img :src="model.content" />
+                <img :src="model.content" class="ai-image"/>
               </div>
               <div class="preview-content" v-else>
                 <template v-if="extractPlainText(model.preview).isImage">
-                  <img :src="extractPlainText(model.preview).url" class="ai-image-preview" :alt="`图片预览`" />
+                  <img :src="extractPlainText(model.preview).url" class="ai-image" :alt="`图片预览`" />
                 </template>
                 <template v-else>
-                  {{ extractPlainText(model.preview).text }}
+                  <div class="prose markdown-body" v-html="renderMarkdown(model.content)"></div>
+                  <!-- {{ extractPlainText(model.preview).text }} -->
                 </template>
               </div>
-              <div class="preview-content" v-else>{{ extractPlainText(model.preview) }}</div>
+              <!-- <div class="preview-content" v-else>{{ extractPlainText(model.preview) }}</div> -->
               <!-- 时间 -->
               <div class="response-time">{{ model.responseTime }}</div>
             </div>
@@ -417,6 +418,7 @@
     object-fit: contain;
     border-radius: 4px;
     transition: all 0.3s ease;
+    object-fit: cover;
   }
 
   .ai-image:hover {
