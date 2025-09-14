@@ -4,6 +4,7 @@ package com.cube.openAI.model;
 import com.cube.openAI.pojos.Message;
 import com.cube.openAI.utils.AIResultUtil;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -17,10 +18,20 @@ public class YuanBaoT1 implements AIModel {
     @Override
     public String generate(List<Message> messages, Double temperature, Integer maxTokens) {
         try {
-            return AIResultUtil.waitForResult(messages, "ybT1", "yb-hunyuan-pt");
+            return AIResultUtil.waitForResult(messages, "ybT1", "yb-hunyuan-pt", false);
         } catch (InterruptedException e) {
             log.error(e.getMessage());
             return e.getMessage();
+        }
+    }
+
+    @Override
+    public Flux<String> generateByStream(List<Message> messages, Double temperature, Integer maxTokens) {
+        try {
+            return AIResultUtil.waitForResultByStream(messages, "ybT1", "yb-hunyuan-pt", "yuan_bao_T1");
+        } catch (InterruptedException e) {
+            log.error(e.getMessage());
+            return Flux.just(e.getMessage());
         }
     }
 }

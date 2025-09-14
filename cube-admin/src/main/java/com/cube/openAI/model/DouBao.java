@@ -1,8 +1,14 @@
 package com.cube.openAI.model;
 
+import com.cube.common.core.redis.RedisCache;
+import com.cube.openAI.pojos.ChatCompletionStreamResponse;
 import com.cube.openAI.pojos.Message;
 import com.cube.openAI.utils.AIResultUtil;
+import com.cube.openAI.utils.SpringContextUtils;
+import com.cube.openAI.utils.ThreadUserInfo;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -16,10 +22,20 @@ public class DouBao implements AIModel {
     @Override
     public String generate(List<Message> messages, Double temperature, Integer maxTokens) {
         try {
-            return AIResultUtil.waitForResult(messages, "db", "zj-db");
+            return AIResultUtil.waitForResult(messages, "db", "zj-db", false);
         } catch (Exception e) {
             log.error(e.getMessage());
             return e.getMessage();
+        }
+    }
+
+    @Override
+    public Flux<String> generateByStream(List<Message> messages, Double temperature, Integer maxTokens) {
+        try {
+            return AIResultUtil.waitForResultByStream(messages, "db", "zj-db", "dou_bao");
+        } catch (InterruptedException e) {
+            log.error(e.getMessage());
+            return Flux.just(e.getMessage());
         }
     }
 }

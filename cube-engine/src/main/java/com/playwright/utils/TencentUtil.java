@@ -8,6 +8,7 @@ import com.microsoft.playwright.options.LoadState;
 import com.playwright.entity.UnPersisBrowserContextInfo;
 import com.playwright.entity.UserInfoRequest;
 import com.playwright.entity.mcp.McpResult;
+import com.playwright.websocket.WebSocketClientService;
 import io.swagger.v3.oas.annotations.Parameter;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
@@ -53,6 +54,8 @@ public class TencentUtil {
 
     @Autowired
     private ClipboardLockManager clipboardLockManager;
+    @Autowired
+    private WebSocketClientService webSocketClientService;
 
     /**
      *
@@ -196,7 +199,7 @@ public class TencentUtil {
             //等待复制按钮出现并点击
 //            String copiedText = waitAndClickYBCopyButton(page,userId,aiName,initialCount,agentName);
             //等待html片段获取完成
-            String copiedText = waitHtmlDom(page, agentName, userId);
+            String copiedText = waitHtmlDom(page, agentName, userId, userInfoRequest);
 
             AtomicReference<String> shareUrlRef = new AtomicReference<>();
 
@@ -428,7 +431,7 @@ public class TencentUtil {
             //等待复制按钮出现并点击
 //            String copiedText = waitAndClickYBCopyButton(page,userId,aiName,initialCount,agentName);
             //等待html片段获取
-            String copiedText = waitHtmlDom(page, agentName, userId);
+            String copiedText = waitHtmlDom(page, agentName, userId, userInfoRequest);
 
             //关闭截图
             if (screenshotFuture != null) {
@@ -618,12 +621,12 @@ public class TencentUtil {
      *
      * @param page Playwright页面实例
      */
-    private String waitHtmlDom(Page page, String agentName, String userId) {
+    private String waitHtmlDom(Page page, String agentName, String userId, UserInfoRequest userInfoRequest) {
         try {
             // 等待聊天框的内容稳定
             String currentContent = "";
             String lastContent = "";
-            String znpbContent = "";
+            String textContent = "";
             // 设置最大等待时间（单位：毫秒），比如 10 分钟
             long timeout = 600000; // 10 分钟
             long startTime = System.currentTimeMillis();  // 获取当前时间戳
@@ -638,7 +641,7 @@ public class TencentUtil {
                 }
                 // 获取最新内容
                 Locator outputLocator = page.locator(".hyc-common-markdown").last();
-                znpbContent  = outputLocator.textContent();
+                textContent  = outputLocator.textContent();
                 currentContent = outputLocator.innerHTML();
 
                 // 如果当前内容和上次内容相同，认为 AI 已经完成回答，退出循环
@@ -647,11 +650,17 @@ public class TencentUtil {
                     break;
                 }
 
+                if(userInfoRequest.getAiName().contains("stream")) {
+                    webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
+                }
                 // 更新上次内容为当前内容
                 lastContent = currentContent;
 
                 // 等待 2 秒后再次检查
                 page.waitForTimeout(2000);  // 等待2秒
+            }
+            if(userInfoRequest.getAiName().contains("stream")) {
+                webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
             }
             currentContent = currentContent.replaceAll("<div class=\"hyc-common-markdown__ref-list\".*?</div>|<span>.*?</span>", "");
             currentContent = currentContent.replaceAll(
@@ -662,7 +671,7 @@ public class TencentUtil {
 //            currentContent = doc.text();  // 提取纯文本内容
             logInfo.sendTaskLog(agentName + "内容已自动提取完成", userId, agentName);
             if(agentName.contains("智能排版")) {
-                return znpbContent;
+                return textContent;
             }
             return currentContent;
 
