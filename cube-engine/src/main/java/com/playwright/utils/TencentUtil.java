@@ -660,7 +660,9 @@ public class TencentUtil {
                 page.waitForTimeout(2000);  // 等待2秒
             }
             if(userInfoRequest.getAiName().contains("stream")) {
-                webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
+                //延迟3秒结束，确保剩余内容全部输出
+                Thread.sleep(3000);
+                webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), userInfoRequest.getAiName());
             }
             currentContent = currentContent.replaceAll("<div class=\"hyc-common-markdown__ref-list\".*?</div>|<span>.*?</span>", "");
             currentContent = currentContent.replaceAll(
