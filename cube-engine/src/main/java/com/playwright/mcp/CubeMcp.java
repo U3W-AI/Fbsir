@@ -70,6 +70,12 @@ public class CubeMcp {
         return startAi(userInfoRequest, "DeepSeek", "dsMcp", "deepseek");
     }
 
+    @Tool(name = "通义千问", description = "通过用户信息调用ai,需要用户unionId,ai配置信息,提示词")
+    public McpResult qwMcp(@ToolParam(description = "用户调用信息,包括用户unionId,用户提示词,用户选择的ai配置信息")
+                           UserInfoRequest userInfoRequest) {
+        return startAi(userInfoRequest, "通义千问", "qwMcp", "ty-qw");
+    }
+
     private McpResult startAi(UserInfoRequest userInfoRequest, String aiName, String methodName, String aiConfig) {
         try {
             userInfoRequest.setTaskId(UUID.randomUUID().toString());
@@ -96,6 +102,9 @@ public class CubeMcp {
             if (aiName.contains("DeepSeek")) {
                 result = browserController.checkDSLogin(userId);
             }
+            if (aiName.contains("通义千问")) {
+                result = browserController.checkTongYiLogin(userId);
+            }
             //TODO 后续添加其他AI的登录判断
             if (result == null || result.equals("false") || result.equals("未登录")) {
                 return McpResult.fail("您未登录" + aiName, "");
@@ -113,6 +122,9 @@ public class CubeMcp {
                 }
                 if(aiName.contains("DeepSeek")){
                     mcpResult = aigcController.startDS(userInfoRequest);
+                }
+                if(aiName.contains("通义千问")){
+                    mcpResult = aigcController.startTYQianwen(userInfoRequest);
                 }
 
                 //TODO 后续添加对其他AI判断执行

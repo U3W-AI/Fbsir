@@ -434,18 +434,24 @@ export default {
         doubao: false,
         baidu: false,
         deepseek: false,
+        qw: false,
+        // metaso: false,
       },
       accounts: {
         yuanbao: "",
         doubao: "",
         baidu: "",
         deepseek: "",
+        qw: "",
+        // metaso: "",
       },
       isClick: {
         yuanbao: false,
         doubao: false,
         baidu: false,
         deepseek: false,
+        qw: false,
+        // metaso: false,
       },
       aiLoginDialogVisible: false,
       currentAiType: "",
@@ -459,6 +465,8 @@ export default {
         doubao: true,
         baidu: true,
         deepseek: true,
+        qw: true,
+        // metaso: true,
       },
       resetStatusTimeout: null, // 状态检查超时定时器
 
@@ -495,6 +503,8 @@ export default {
         doubao: "豆包登录",
         baidu: "百度AI登录",
         deepseek: "DeepSeek登录",
+        qw: "通义千问登录",
+        // metaso: "秘塔登录",
       };
       return titles[this.currentAiType] || "登录";
     },
@@ -526,11 +536,16 @@ export default {
         this.isClick.doubao = false;
         this.isClick.baidu = false,
         this.isClick.deepseek = false;
+        this.isClick.qw = false;
+        // this.isClick.metaso = false;
 
         this.isLoading.yuanbao = true;
         this.isLoading.doubao = true;
         this.isLoading.baidu = true;
         this.isLoading.deepseek = true;
+        this.isLoading.qw = true;
+        // this.isLoading.metaso = true;
+
         this.initWebSocket(this.userId); // 创建时建立连接
 
         setTimeout(() => {
@@ -576,6 +591,18 @@ export default {
             userId: this.userId,
             corpId: this.corpId,
           });
+          // 检查通义千问登录状态
+          this.sendMessage({
+            type: "PLAY_CHECK_QW_LOGIN",
+            userId: this.userId,
+            corpId: this.corpId,
+          });
+          // 检查秘塔登录状态
+          // this.sendMessage({
+          //   type: "PLAY_CHECK_METASO_LOGIN",
+          //   userId: this.userId,
+          //   corpId: this.corpId,
+          // });
         }, 1000);
 
         // 页面加载时自动获取公众号信息，刷新按钮状态
@@ -718,6 +745,20 @@ export default {
           corpId: this.corpId,
         });
       }
+      if (type == "qw") {
+        this.sendMessage({
+          type: "PLAY_GET_QW_QRCODE",
+          userId: this.userId,
+          corpId: this.corpId,
+        });
+      }
+      if (type == "metaso") {
+        this.sendMessage({
+          type: "PLAY_GET_METASO_QRCODE",
+          userId: this.userId,
+          corpId: this.corpId,
+        });
+      }
       this.$message({
         message: "正在获取登录二维码...",
         type: "info",
@@ -729,6 +770,8 @@ export default {
         doubao: require("@/assets/logo/doubao.png"),
         baidu: require("@/assets/logo/Baidu.png"),
         deepseek: require("@/assets/logo/Deepseek.png"),
+        qw: require("@/assets/logo/qw.png"),
+        metaso: require("@/assets/logo/Metaso.png"),
       };
       return icons[type] || "";
     },
@@ -738,6 +781,8 @@ export default {
         doubao: "豆包",
         baidu: "百度",
         deepseek: "DeepSeek",
+        qw: "通义千问",
+        metaso: "秘塔",
       };
       return names[type] || "";
     },
@@ -776,7 +821,9 @@ export default {
         datastr.includes("RETURN_PC_YB_QRURL") ||
         datastr.includes("RETURN_PC_DB_QRURL") ||
         datastr.includes("RETURN_PC_BAIDU_QRURL") ||
-        datastr.includes("RETURN_PC_DEEPSEEK_QRURL")
+        datastr.includes("RETURN_PC_DEEPSEEK_QRURL") ||
+        datastr.includes("RETURN_PC_QW_QRURL") ||
+        datastr.includes("RETURN_PC_METASO_QRURL")
       ) {
         if (dataObj.url && dataObj.url.trim() !== "") {
           this.qrCodeUrl = dataObj.url;
@@ -812,7 +859,7 @@ export default {
           this.isLoading.doubao = false;
           this.isClick.doubao = true; // 检测成功后设为true
           // 检查是否所有AI都已恢复，全部恢复则清除超时定时器
-          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.baidu) {
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.deepseek && /* !this.isLoading.minimax && */ !this.isLoading.qw && !this.isLoading.metaso /* && !this.isLoading.kimi */) { // 移除Kimi登录状态检测
             if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
           }
         } else {
@@ -828,7 +875,7 @@ export default {
           this.isLoading.baidu = false;
           this.isClick.baidu = true; // 检测成功后设为true
           // 检查是否所有AI都已恢复，全部恢复则清除超时定时器
-          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.baidu) {
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.deepseek && /* !this.isLoading.minimax && */ !this.isLoading.qw && !this.isLoading.metaso /* && !this.isLoading.kimi */) { // 移除Kimi登录状态检测
             if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
           }
         } else {
@@ -848,6 +895,34 @@ export default {
         } else {
           this.isClick.deepseek = true;
           this.isLoading.deepseek = false;
+        }
+      }else if(datastr.includes("RETURN_TY_STATUS") && dataObj.status != ""){
+        if (!datastr.includes("false")) {
+          this.aiLoginDialogVisible = false;
+          this.aiLoginStatus.qw = true;
+          this.accounts.qw = dataObj.status;
+          this.isLoading.qw = false;
+          this.isClick.qw = true; // 检测成功后设为true
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.deepseek && /* !this.isLoading.minimax && */ !this.isLoading.qw && !this.isLoading.metaso /* && !this.isLoading.kimi */) { // 移除Kimi登录状态检测
+            if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
+          }
+        } else {
+          this.isClick.qw = true;
+          this.isLoading.qw = false;
+        }
+      }else if(datastr.includes("RETURN_METASO_STATUS") && dataObj.status != ""){
+        if (!datastr.includes("false")) {
+          this.aiLoginDialogVisible = false;
+          this.aiLoginStatus.metaso = true;
+          this.accounts.metaso = dataObj.status;
+          this.isLoading.metaso = false;
+          this.isClick.metaso = true; // 检测成功后设为true
+          if (!this.isLoading.yuanbao && !this.isLoading.doubao && !this.isLoading.deepseek && /* !this.isLoading.minimax && */ !this.isLoading.qw && !this.isLoading.metaso /* && !this.isLoading.kimi */) { // 移除Kimi登录状态检测
+            if (this.resetStatusTimeout) clearTimeout(this.resetStatusTimeout);
+          }
+        } else {
+          this.isClick.metaso = true;
+          this.isLoading.metaso = false;
         }
       }
     },
@@ -891,7 +966,7 @@ export default {
       // this.isLoading.minimax = true; // 已移除MiniMax登录状态检测
       this.isLoading.metaso = true;
       // this.isLoading.kimi = true; // 移除Kimi登录状态检测
-      // this.isLoading.qw = true;
+      this.isLoading.qw = true;
       this.isLoading.zhzd = true;
       this.isLoading.baidu = true;
       this.isClick.yuanbao = false;
@@ -899,7 +974,7 @@ export default {
       this.isClick.deepseek = false;
       // this.isClick.minimax = false; // 已移除MiniMax登录状态检测
       this.isClick.metaso = false;
-      // this.isClick.qw = false;
+      this.isClick.qw = false;
       // this.isClick.kimi = false; // 移除Kimi登录状态检测
       this.isClick.baidu = false;
       this.isClick.zhzd = false;
@@ -911,15 +986,16 @@ export default {
         this.isLoading.doubao = false;
         this.isLoading.deepseek = false;
         this.isLoading.metaso = false;
-        // this.isLoading.qw = false;
+        this.isLoading.qw = false;
 
         this.isLoading.baidu = false;
         this.isLoading.zhzd = false;
         this.isClick.yuanbao = true;
         this.isClick.doubao = true;
         this.isClick.deepseek = true;
-        // this.isClick.qw = true;
+        this.isClick.qw = true;
         this.isClick.metaso = true;
+        this.isClick.baidu = true;
 
         this.$message.warning('AI登录状态刷新超时，请检查网络或稍后重试');
       }, 150000);
@@ -927,8 +1003,8 @@ export default {
       this.sendMessage({ type: "PLAY_CHECK_YB_LOGIN", userId: this.userId, corpId: this.corpId });
       this.sendMessage({ type: "PLAY_CHECK_DB_LOGIN", userId: this.userId, corpId: this.corpId });
       this.sendMessage({ type: "PLAY_CHECK_DEEPSEEK_LOGIN", userId: this.userId, corpId: this.corpId });
-      this.sendMessage({ type: "PLAY_CHECK_METASO_LOGIN", userId: this.userId, corpId: this.corpId });
-      // this.sendMessage({ type: "PLAY_CHECK_QW_LOGIN", userId: this.userId, corpId: this.corpId });
+      // this.sendMessage({ type: "PLAY_CHECK_METASO_LOGIN", userId: this.userId, corpId: this.corpId });
+      this.sendMessage({ type: "PLAY_CHECK_QW_LOGIN", userId: this.userId, corpId: this.corpId });
       this.sendMessage({ type: "PLAY_CHECK_BAIDU_LOGIN", userId: this.userId, corpId: this.corpId });
 
     },

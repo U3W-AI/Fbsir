@@ -106,20 +106,22 @@
                     <el-switch v-model="ai.isWeb" active-color="#13ce66" inactive-color="#ff4949"
                       :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')" class="web-switch">
                     </el-switch> -->
-                      <el-dropdown size="mini" :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')" :type="ai.isModel ? 'primary' : 'plain'" @click="ai.isModel = !ai.isModel" split-button trigger="click" :hide-on-click="false"
-                        @command="function (command) { command == ai.selectedModel ? ai.isModel = false : ((ai.selectedModel = command) & (ai.isModel = true)) }">
-                          {{ ai.selectedModel == "dsr1" ? "DeepSeek-R1" : ai.selectedModel == "dsv3" ? "DeepSeek-V3"
-                           : ai.selectedModel == "wenxin" ?"文心4.5Turbo": "百度AI助手" }}
-                        <template #dropdown>
-                          <el-dropdown-menu>
-                            <el-dropdown-item command="dsr1">DeepSeek-R1</el-dropdown-item>
-                            <el-dropdown-item command="dsv3">DeepSeek-V3</el-dropdown-item>
-                            <el-dropdown-item command="wenxin">文心 4.5 Turbo</el-dropdown-item>
-                            <span style="font-size: 12px; text-align:center; margin: 0px 0px 0px 10px">联网搜索</span>
-                            <el-switch size="mini" v-model="ai.isWeb" style="zoom: 0.8"></el-switch>
-                          </el-dropdown-menu>
-                        </template>
-                      </el-dropdown>
+                    <el-dropdown size="mini" :disabled="!ai.enabled || ai.selectedCapabilities.includes('deep_search')"
+                      :type="ai.isModel ? 'primary' : 'plain'" @click="ai.isModel = !ai.isModel" split-button
+                      trigger="click" :hide-on-click="false"
+                      @command="function (command) { command == ai.selectedModel ? ai.isModel = false : ((ai.selectedModel = command) & (ai.isModel = true)) }">
+                      {{ ai.selectedModel == "dsr1" ? "DeepSeek-R1" : ai.selectedModel == "dsv3" ? "DeepSeek-V3"
+                        : ai.selectedModel == "wenxin" ? "文心4.5Turbo" : "百度AI助手" }}
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item command="dsr1">DeepSeek-R1</el-dropdown-item>
+                          <el-dropdown-item command="dsv3">DeepSeek-V3</el-dropdown-item>
+                          <el-dropdown-item command="wenxin">文心 4.5 Turbo</el-dropdown-item>
+                          <span style="font-size: 12px; text-align:center; margin: 0px 0px 0px 10px">联网搜索</span>
+                          <el-switch size="mini" v-model="ai.isWeb" style="zoom: 0.8"></el-switch>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
                   </div>
                   <!-- 其他AI -->
                   <div v-else class="button-capability-group">
@@ -389,6 +391,7 @@
           ybDsChatId: "",
           dbChatId: "",
           tyChatId: "",
+          metasoChatId: "",
           baiduChatId: "",
           deepseekChatId: "",
 
@@ -414,19 +417,6 @@
             isSingleSelect: false  // 添加单选标记
           },
 
-          // {
-          //   name: '通义千问',
-          //   avatar: require('../../../assets/ai/qw.png'),
-          //   capabilities: [
-          //     { label: '深度思考', value: 'deep_thinking' },
-          //     { label: '深度搜索', value: 'web_search' }
-          //   ],
-          //   selectedCapability: '',
-          //   enabled: true,
-          //   status: 'idle',
-          //   progressLogs: [],
-          //   isExpanded: true
-          // },
           {
             name: '百度AI',
             avatar: require('../../../assets/logo/Baidu.png'),
@@ -484,6 +474,33 @@
             isExpanded: true,
             isSingleSelect: false,  // 添加单选标记
           },
+          {
+            name: '通义千问',
+            avatar: require('../../../assets/ai/qw.png'),
+            capabilities: [
+              { label: '深度思考', value: 'deep_thinking' },
+            ],
+            selectedCapability: '',
+            enabled: true,
+            status: 'idle',
+            progressLogs: [],
+            isExpanded: true
+          },
+          // {
+          //   name: "秘塔",
+          //   avatar: require("../../../assets/ai/Metaso.png"),
+          //   capabilities: [
+          //     { label: "极速", value: "fast" },
+          //     { label: "极速思考", value: "fast_thinking" },
+          //     { label: "长思考", value: "long_thinking" },
+          //   ],
+          //   selectedCapabilities: "fast",// 单选使用字符串
+          //   enabled: true,
+          //   status: "idle",
+          //   progressLogs: [],
+          //   isExpanded: true,
+          //   isSingleSelect: true,  // 添加单选标记,用于capabilities中状态只能多选一的时候改成true,然后把selectedCapabilities赋值为字符串，不要是数组
+          // },
 
         ],
         promptInput: "",
@@ -532,7 +549,7 @@
       },
       // 检查所有任务是否完成
       allTasksCompleted() {
-        if (!this.taskStarted || this.enabledAIs.length === 0) {
+        if(!this.taskStarted || this.enabledAIs.length === 0) {
           return false;
         }
         return this.enabledAIs.every(ai => ai.status === 'completed' || ai.status === 'failed');
@@ -601,7 +618,7 @@
       // 监听任务完成状态
       allTasksCompleted: {
         handler(newValue) {
-          if (newValue && this.taskStarted) {
+          if(newValue && this.taskStarted) {
             // 所有任务完成时的处理
             this.$nextTick(() => {
               this.$message.success('所有AI任务已完成！');
@@ -654,14 +671,12 @@
           }
 
 
-          // if(ai.name === '通义千问' && ai.enabled){
-          //   this.userInfoReq.roles = this.userInfoReq.roles + 'ty-qw,';
-          //   if (ai.selectedCapability.includes("deep_thinking")) {
-          //     this.userInfoReq.roles = this.userInfoReq.roles + 'ty-qw-sdsk,'
-          //   } else if (ai.selectedCapability.includes("web_search")) {
-          //     this.userInfoReq.roles = this.userInfoReq.roles + 'ty-qw-lwss,';
-          //   }
-          // }
+          if(ai.name === '通义千问' && ai.enabled) {
+            this.userInfoReq.roles = this.userInfoReq.roles + 'ty-qw,';
+            if(ai.selectedCapability.includes("deep_thinking")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + 'ty-qw-sdsk,'
+            }
+          }
 
           if(ai.name === '腾讯元宝T1') {
             this.userInfoReq.roles = this.userInfoReq.roles + 'yb-hunyuan-pt,';
@@ -686,7 +701,7 @@
             this.userInfoReq.roles = this.userInfoReq.roles + 'baidu-agent,';
             if(ai.selectedCapabilities.includes("deep_search")) {
               this.userInfoReq.roles = this.userInfoReq.roles + 'baidu-sdss,';
-            } else if(ai.isModel){
+            } else if(ai.isModel) {
               if(ai.isWeb) {
                 this.userInfoReq.roles = this.userInfoReq.roles + 'baidu-web,';
               }
@@ -943,10 +958,12 @@
           this.userInfoReq.baiduChatId = dataObj.chatId;
         } else if(dataObj.type === "RETURN_DEEPSEEK_CHATID" && dataObj.chatId) {
           this.userInfoReq.deepseekChatId = dataObj.chatId;
+        } else if(dataObj.type === "RETURN_METASO_CHATID" && dataObj.chatId) {
+          this.userInfoReq.metasoChatId = dataObj.chatId;
         }
-        // else if (dataObj.type === 'RETURN_TY_CHATID' && dataObj.chatId) {
-        //   this.userInfoReq.tyChatId = dataObj.chatId;
-        // }
+        else if(dataObj.type === 'RETURN_TY_CHATID' && dataObj.chatId) {
+          this.userInfoReq.tyChatId = dataObj.chatId;
+        }
         else if(dataObj.type === "RETURN_MAX_CHATID" && dataObj.chatId) {
           this.userInfoReq.maxChatId = dataObj.chatId;
         }
@@ -957,7 +974,7 @@
           if(dataObj.taskId && dataObj.taskId !== this.userInfoReq.taskId) {
             return; // 忽略其他任务的消息
           }
-          
+
           const targetAI = this.enabledAIs.find(
             (ai) => ai.name === dataObj.aiName
           );
@@ -983,7 +1000,7 @@
           if(dataObj.taskId && dataObj.taskId !== this.userInfoReq.taskId) {
             return; // 忽略其他任务的截图
           }
-          
+
           // 将新的截图添加到数组开头
           this.screenshots.unshift(dataObj.url);
           return;
@@ -1060,10 +1077,14 @@
             console.log("收到DeepSeek消息:", dataObj);
             targetAI = this.enabledAIs.find((ai) => ai.name === "DeepSeek");
             break;
-          // case 'RETURN_TY_RES':
-          //   console.log('收到通义千问消息:', data);
-          //   targetAI = this.enabledAIs.find(ai => ai.name === '通义千问');
-          //   break;
+          case 'RETURN_TY_RES':
+            console.log('收到通义千问消息:', data);
+            targetAI = this.enabledAIs.find(ai => ai.name === '通义千问');
+            break;
+          case "RETURN_METASO_RES":
+            console.log("收到秘塔消息:", dataObj);
+            targetAI = this.enabledAIs.find((ai) => ai.name === "秘塔");
+            break;
 
 
 
@@ -1352,8 +1373,9 @@
           this.userInfoReq.dbChatId = item.dbChatId || "";
           this.userInfoReq.deepseekChatId = item.deepseekChatId || "";
           this.userInfoReq.maxChatId = item.maxChatId || "";
+          this.userInfoReq.baiduChatId = item.baiduChatId || "";
 
-          // this.userInfoReq.tyChatId = item.tyChatId || "";
+          this.userInfoReq.tyChatId = item.tyChatId || "";
           this.userInfoReq.metasoChatId = item.metasoChatId || "";
           this.userInfoReq.isNewChat = false;
 
@@ -1386,7 +1408,8 @@
           ybDsChatId: this.userInfoReq.ybDsChatId,
           dbChatId: this.userInfoReq.dbChatId,
           deepseekChatId: this.userInfoReq.deepseekChatId,
-          // tyChatId: this.userInfoReq.tyChatId,
+          baiduChatId: this.userInfoReq.baiduChatId,
+          tyChatId: this.userInfoReq.tyChatId,
           maxChatId: this.userInfoReq.maxChatId,
 
           metasoChatId: this.userInfoReq.metasoChatId,
@@ -1401,8 +1424,9 @@
             toneChatId: this.userInfoReq.toneChatId,
             ybDsChatId: this.userInfoReq.ybDsChatId,
             dbChatId: this.userInfoReq.dbChatId,
+            baiduChatId: this.userInfoReq.baiduChatId,
             deepseekChatId: this.userInfoReq.deepseekChatId,
-            // tyChatId: this.userInfoReq.tyChatId,
+            tyChatId: this.userInfoReq.tyChatId,
             maxChatId: this.userInfoReq.maxChatId,
 
             metasoChatId: this.userInfoReq.metasoChatId,
@@ -1432,14 +1456,14 @@
         this.screenshots = [];
         this.results = [];
         this.enabledAIs = [];
-        
+
         // 重置所有AI状态为初始状态
         this.aiList.forEach(ai => {
           this.$set(ai, "status", "idle");
           this.$set(ai, "progressLogs", []);
           this.$set(ai, "isExpanded", true);
         });
-        
+
         this.userInfoReq = {
           userPrompt: "",
           userId: this.userId,
@@ -1451,7 +1475,8 @@
           dbChatId: "",
           baiduChatId: "",
           deepseekChatId: "",
-          // tyChatId: "",
+          tyChatId: "",
+          metasoChatId: "",
           maxChatId: "",
           isNewChat: true,
         };
@@ -1514,18 +1539,32 @@
             isExpanded: true,
             isSingleSelect: false,  // 添加单选标记
           },
+          {
+            name: '通义千问',
+            avatar: require('../../../assets/ai/qw.png'),
+            capabilities: [
+              { label: '深度思考', value: 'deep_thinking' },
+            ],
+            selectedCapability: '',
+            enabled: true,
+            status: 'idle',
+            progressLogs: [],
+            isExpanded: true
+          },
           // {
-          //   name: '通义千问',
-          //   avatar: require('../../../assets/ai/qw.png'),
+          //   name: "秘塔",
+          //   avatar: require("../../../assets/ai/Metaso.png"),
           //   capabilities: [
-          //     { label: '深度思考', value: 'deep_thinking' },
-          //     { label: '深度搜索', value: 'web_search' }
+          //     { label: "极速", value: "fast" },
+          //     { label: "极速思考", value: "fast_thinking" },
+          //     { label: "长思考", value: "long_thinking" },
           //   ],
-          //   selectedCapability: '',
+          //   selectedCapabilities: "fast",// 单选使用字符串
           //   enabled: true,
-          //   status: 'idle',
+          //   status: "idle",
           //   progressLogs: [],
-          //   isExpanded: true
+          //   isExpanded: true,
+          //   isSingleSelect: true,  // 添加单选标记,用于capabilities中状态只能多选一的时候改成true,然后把selectedCapabilities赋值为字符串，不要是数组
           // },
 
           {
@@ -1594,6 +1633,8 @@
           豆包: "560px",
           "腾讯元宝T1": "700px",
           "腾讯元宝DS": "700px",
+          通义千问: "700px",
+          秘塔: "700px",
         };
 
         const width = widthMap[aiName] || "560px"; // 默认宽度

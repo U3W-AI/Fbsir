@@ -182,6 +182,16 @@ public class WebSocketClientService {
                                 }
                             }, "DeepSeek智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
+                        // 处理包含"ty-qw"的信息
+                        if (message.contains("ty-qw")){
+                            concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
+                                try {
+                                    aigcController.startTYQianwen(userInfoRequest);
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                            }, "通义千问", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
+                        }
                     }
 
                     // 处理检查DeepSeek登录状态的消息
@@ -257,6 +267,45 @@ public class WebSocketClientService {
                         }, "百度AI登录检查", userInfoRequest.getUserId());
                     }
 
+                    // 处理检查通义千问登录状态的消息
+                    if (message.contains("PLAY_CHECK_QW_LOGIN")) {
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                String checkLogin = browserController.checkTongYiLogin(userInfoRequest.getUserId());
+                                userInfoRequest.setStatus(checkLogin);
+                                userInfoRequest.setType("RETURN_TY_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "通义千问登录检查", userInfoRequest.getUserId());
+                    }
+
+                    // 处理获取秘塔二维码的消息
+                    if(message.contains("PLAY_GET_METASO_QRCODE")){
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                browserController.getMetasoQrCode(userInfoRequest.getUserId());
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "获取Metaso二维码", userInfoRequest.getUserId());
+                    }
+
+                    //  处理检查秘塔登录状态的信息
+                    if (message.contains("CHECK_METASO_LOGIN")) {
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                String checkLogin = browserController.checkMetasoLogin(userInfoRequest.getUserId());
+                                userInfoRequest.setStatus(checkLogin);
+                                userInfoRequest.setType("RETURN_METASO_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "Metaso登录检查", userInfoRequest.getUserId());
+                    }
+
                     // 处理获取百度AI二维码的消息
                     if(message.contains("PLAY_GET_BAIDU_QRCODE")){
                         concurrencyManager.submitBrowserTask(() -> {
@@ -266,6 +315,17 @@ public class WebSocketClientService {
                                 e.printStackTrace();
                             }
                         }, "获取百度AI二维码", userInfoRequest.getUserId());
+                    }
+
+                    // 处理获取通义千问二维码的消息
+                    if(message.contains("PLAY_GET_QW_QRCODE")){
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                browserController.getTongYiQrCode(userInfoRequest.getUserId());
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "获取通义千问二维码", userInfoRequest.getUserId());
                     }
                     
                     // 处理获取yb二维码的消息

@@ -48,6 +48,9 @@ public class UserInfoRequest {
     @ToolParam(description = "DeepSeek AI的聊天会话 ID",required = false)
     private String deepseekChatId;
 
+    @ToolParam(description = "通义千问的聊天会话 ID",required = false)
+    private String tyChatId;
+
     @ToolParam(description = "是否为新对话。true 表示清空上下文重新开始", required = false)
     private String isNewChat;
 
