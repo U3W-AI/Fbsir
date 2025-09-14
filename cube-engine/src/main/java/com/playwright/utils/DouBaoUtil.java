@@ -132,7 +132,7 @@ public class DouBaoUtil {
      * html片段获取（核心监控方法）
      * @param page Playwright页面实例
      */
-    public String waitDBHtmlDom(Page page,String userId,String aiName, UserInfoRequest userInfoRequest)  {
+    public String waitDBHtmlDom(Page page,String userId,String aiName, UserInfoRequest userInfoRequest) throws InterruptedException {
         try {
             // 等待聊天框的内容稳定
             String currentContent = "";
@@ -185,6 +185,8 @@ public class DouBaoUtil {
                 page.waitForTimeout(2000);  // 等待10秒再次检查
             }
             if(userInfoRequest.getAiName().contains("stream")) {
+//                延迟3秒结束，确保剩余内容全部输出
+                Thread.sleep(3000);
                 webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), "db-stream");
             }
             logInfo.sendTaskLog( aiName+"内容已自动提取完成",userId,aiName);

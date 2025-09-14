@@ -9,10 +9,12 @@ import com.cube.openAI.pojos.UserInfo;
 import com.cube.openAI.pojos.UserInfoRequest;
 import com.cube.wechat.selfapp.app.config.MyWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -20,7 +22,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * dateStart 2024/8/4 9:34
  * dateNow   2025/9/13 9:37
  */
+@Slf4j
 public class AIResultUtil {
+//    最大投射次数
+    private static final Long MAX_EMISSIONS = 1000L;
+//    内容保持的最大时间
+    private static final Long INTERVAL_TIME= 20 * 1000L;
     public static String waitForResult(List<Message> messages, String aiName, String roles, boolean isStream) throws InterruptedException {
         try {
             MyWebSocketHandler myWebSocketHandler = SpringContextUtils.getBean(MyWebSocketHandler.class);
@@ -66,7 +73,9 @@ public class AIResultUtil {
 
             String userId = ThreadUserInfo.getUserInfo().getUserId();
             String key = "openAI:" + userId + ":" + aiName + ":" + taskId;
+            AtomicInteger times = new AtomicInteger();
 
+            AtomicReference<Long> intervalTime = new AtomicReference<>(System.currentTimeMillis());
             AtomicReference<String> currentContent = new AtomicReference<>("");
             AtomicReference<String> lastContent = new AtomicReference<>("");
             return Flux
@@ -77,10 +86,25 @@ public class AIResultUtil {
                         String cacheStr= redisCache.getCacheObject(key);
                         if(cacheStr != null) {
                             lastContent.set(cacheStr);
+                        } else {
+                            //如果空，判断三次，如果三次都为空，则正常判断时长
+                            times.getAndIncrement();
+                            if(times.get() <  3) {
+                                intervalTime.set(System.currentTimeMillis());
+                            }
+                        }
+                        if (cacheStr != null && cacheStr.contains("END")) {
+                            return Flux.just("END");
                         }
                         if(lastContent.get().length() > currentContent.get().length()) {
                             newContent = lastContent.get().substring(currentContent.get().length());
                             currentContent.set(lastContent.get());
+                            intervalTime.set(System.currentTimeMillis());
+                        } else {
+//                            如果内容相同时间超过10秒就结束
+                            if(System.currentTimeMillis() - intervalTime.get() > INTERVAL_TIME) {
+                                return Flux.just("END");
+                            }
                         }
                         String[] chunks = newContent.split("(?<=[。？！，；：])");
                         return Flux
@@ -109,9 +133,10 @@ public class AIResultUtil {
                                     } catch (Exception e) {
                                         return "{\"error\": {\"message\": \"序列化失败: " + e.getMessage() + "\"}}";
                                     }
-                                })
-                                .takeWhile(content -> !content.contains("END"));
-                    });
+                                });
+                    })
+                    .takeWhile(content -> !content.contains("END"))
+                    .take(MAX_EMISSIONS);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
