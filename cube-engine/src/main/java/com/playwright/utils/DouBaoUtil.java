@@ -3,6 +3,9 @@ package com.playwright.utils;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.WaitForSelectorState;
+import com.playwright.entity.UserInfoRequest;
+import com.playwright.entity.mcp.McpResult;
+import com.playwright.websocket.WebSocketClientService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +24,9 @@ public class DouBaoUtil {
 
     @Autowired
     private ClipboardLockManager clipboardLockManager;
+
+    @Autowired
+    private WebSocketClientService webSocketClientService;
 
     public void waitAndClickDBScoreCopyButton(Page page, String userId) throws InterruptedException {
         try {
@@ -91,7 +97,6 @@ public class DouBaoUtil {
                 if (!currentContent.isEmpty() && currentContent.equals(lastContent)) {
                     break;
                 }
-
                 lastContent = currentContent;
                 page.waitForTimeout(5000); // 每5秒检查一次
             }
@@ -127,11 +132,12 @@ public class DouBaoUtil {
      * html片段获取（核心监控方法）
      * @param page Playwright页面实例
      */
-    public String waitDBHtmlDom(Page page,String userId,String aiName)  {
+    public String waitDBHtmlDom(Page page,String userId,String aiName, UserInfoRequest userInfoRequest)  {
         try {
             // 等待聊天框的内容稳定
             String currentContent = "";
             String lastContent = "";
+            String textContent = "";
             boolean isRight =false;
             // 设置最大等待时间（单位：毫秒），比如 10 分钟
             long timeout = 600000; // 10 分钟
@@ -151,8 +157,6 @@ public class DouBaoUtil {
                     break;
                 }
                 // 获取最新内容
-
-
                 if(currentContent.contains("改用对话直接回答") && !isRight){
                     page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/div/main/div/div/div[2]/div/div[1]/div/div/div[2]/div[2]/div/div/div/div/div/div/div[1]/div/div/div[2]/div[1]/div/div").click();
                     isRight = true;
@@ -161,21 +165,27 @@ public class DouBaoUtil {
                 if(isRight){
                     Locator outputLocator = page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[2]/div/div/div/div/div/div/div/div/div/div/div/div[1]").last();
                     currentContent = outputLocator.innerHTML();
+                    textContent = outputLocator.textContent();
                 }else{
                     Locator outputLocator = page.locator(".flow-markdown-body").last();
                     currentContent = outputLocator.innerHTML();
+                    textContent = outputLocator.textContent();
                 }
-
 
                 // 如果当前内容和上次内容相同，认为 AI 已经完成回答，退出循环
                 if (currentContent.equals(lastContent)) {
                     logInfo.sendTaskLog( aiName+"回答完成，正在自动提取内容",userId,aiName);
                     break;
                 }
-
+                if(userInfoRequest.getAiName().contains("stream")) {
+                    webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), "db-stream");
+                }
                 // 更新上次内容为当前内容
                 lastContent = currentContent;
-                page.waitForTimeout(10000);  // 等待10秒再次检查
+                page.waitForTimeout(2000);  // 等待10秒再次检查
+            }
+            if(userInfoRequest.getAiName().contains("stream")) {
+                webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), "db-stream");
             }
             logInfo.sendTaskLog( aiName+"内容已自动提取完成",userId,aiName);
 

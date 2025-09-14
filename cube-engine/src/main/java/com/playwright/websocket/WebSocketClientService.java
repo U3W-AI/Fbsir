@@ -115,9 +115,12 @@ public class WebSocketClientService {
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startYB(userInfoRequest);
+                                    if(aiName.contains("stream")) {
+                                        return;
+                                    }
                                     sendMessage(userInfoRequest,mcpResult, aiName);
                                 } catch (Exception e) {
-                                    e.printStackTrace();
+                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
                                 }
                             }, "元宝智能体", userInfoRequest.getUserId());
                         }
@@ -131,9 +134,12 @@ public class WebSocketClientService {
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startDB(userInfoRequest);
+                                    if(aiName.contains("stream")) {
+                                        return;
+                                    }
                                     sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
-                                    e.printStackTrace();
+                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
                                 }
                             }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
@@ -148,9 +154,12 @@ public class WebSocketClientService {
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startBaidu(userInfoRequest);
+                                    if(aiName.contains("stream")) {
+                                        return;
+                                    }
                                     sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
-                                    e.printStackTrace();
+                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
                                 }
                             }, "百度AI", userInfoRequest.getUserId());
                         }
@@ -164,9 +173,12 @@ public class WebSocketClientService {
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startDS(userInfoRequest);
+                                    if(aiName.contains("stream")) {
+                                        return;
+                                    }
                                     sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
-                                    e.printStackTrace();
+                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
                                 }
                             }, "DeepSeek智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
