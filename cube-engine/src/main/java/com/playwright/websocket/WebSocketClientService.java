@@ -111,7 +111,7 @@ public class WebSocketClientService {
 //                                    新增检查登录状态
                                     String status = browserController.checkYBLogin(userInfoRequest.getUserId());
                                     if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录元宝",null), aiName);
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录元宝",null), aiName);
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startYB(userInfoRequest);
@@ -130,7 +130,7 @@ public class WebSocketClientService {
                                 try {
                                     String status = browserController.checkDBLogin(userInfoRequest.getUserId());
                                     if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录豆包",null), aiName);
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录豆包",null), aiName);
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startDB(userInfoRequest);
@@ -150,7 +150,7 @@ public class WebSocketClientService {
                                 try {
                                     String status = browserController.checkBaiduLogin(userInfoRequest.getUserId());
                                     if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录百度AI",null), aiName);
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录百度AI",null), aiName);
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startBaidu(userInfoRequest);
@@ -169,7 +169,7 @@ public class WebSocketClientService {
                                 try {
                                     String status = browserController.checkDSLogin(userInfoRequest.getUserId());
                                     if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往官网登录deepseek",null), aiName);
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录deepseek",null), aiName);
                                         return;
                                     }
                                     McpResult mcpResult = aigcController.startDS(userInfoRequest);
@@ -186,9 +186,19 @@ public class WebSocketClientService {
                         if (message.contains("ty-qw")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 try {
-                                    aigcController.startTYQianwen(userInfoRequest);
+                                    String status = browserController.checkTongYiLogin(userInfoRequest.getUserId());
+                                    if(status.equals("未登录") || status.equals("false")) {
+                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录通义千问",null), aiName);
+                                        return;
+                                    }
+                                    McpResult mcpResult = aigcController.startTYQianwen(userInfoRequest);
+                                    if(aiName.contains("stream")) {
+                                        return;
+                                    }
+                                    sendMessage(userInfoRequest,mcpResult,aiName);
                                 } catch (Exception e) {
-                                    e.printStackTrace();
+                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
+
                                 }
                             }, "通义千问", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }

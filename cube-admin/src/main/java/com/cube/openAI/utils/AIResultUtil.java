@@ -88,10 +88,10 @@ public class AIResultUtil {
                             lastContent.set(cacheStr);
                         } else {
                             //如果空，判断三次，如果三次都为空，则正常判断时长
-                            times.getAndIncrement();
                             if(times.get() <  3) {
                                 intervalTime.set(System.currentTimeMillis());
                             }
+                            times.getAndIncrement();
                         }
                         if (cacheStr != null && cacheStr.contains("END")) {
                             return Flux.just("END");

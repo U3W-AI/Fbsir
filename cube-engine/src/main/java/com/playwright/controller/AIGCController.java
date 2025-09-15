@@ -728,37 +728,6 @@ public class AIGCController {
                 UserLogUtil.sendExceptionLog(userId, "百度AI截图关闭", "startBaidu", e, url + "/saveLogInfo");
             }
 
-            // 如果获取内容失败，尝试备用方法
-//            if (copiedText.startsWith("获取内容失败") || copiedText.isEmpty()) {
-//                try {
-//                    logInfo.sendTaskLog("尝试使用备用方法提取内容", userId, "百度AI");
-//
-//                    Object extractedContent = page.evaluate("""
-//                                () => {
-//                                    const contentElements = document.querySelectorAll('div, p, span');
-//                                    let longestText = '';
-//
-//                                    for (let element of contentElements) {
-//                                        const text = element.innerHTML;
-//                                        if (text && text.length > longestText.length && text.length > 100) {
-//                                            longestText = text;
-//                                        }
-//                                    }
-//
-//                                    return longestText || '无法提取内容';
-//                                }
-//                            """);
-//
-//                    if (extractedContent != null && !extractedContent.toString().isEmpty() &&
-//                            !extractedContent.toString().equals("无法提取内容")) {
-//                        copiedText = extractedContent.toString();
-//                        logInfo.sendTaskLog("使用备用方法成功提取内容", userId, "百度AI");
-//                    }
-//                } catch (Exception e) {
-//                    logInfo.sendTaskLog("备用提取方法失败", userId, "百度AI");
-//                    UserLogUtil.sendExceptionLog(userId, "百度AI备用提取", "startBaidu", e, url + "/saveLogInfo");
-//                }
-//            }
             // 保存结果
             McpResult mcpResult = new McpResult();
             try {

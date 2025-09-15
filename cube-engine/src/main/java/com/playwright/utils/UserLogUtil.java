@@ -82,12 +82,9 @@ public class UserLogUtil {
     /**
      * 记录智能体操作超时异常
      */
-    public static void sendAITimeoutLog(String userId, String aiName, String operation, long timeout, String elementInfo, String url) {
-        Exception timeoutException = new Exception(String.format(
-            "操作超时 | AI：%s | 操作：%s | 超时时间：%dms | 元素信息：%s", 
-            aiName, operation, timeout, elementInfo));
+    public static void sendAITimeoutLog(String userId, String aiName, String operation, Exception e, String elementInfo, String url) {
         String description = String.format("智能体操作超时 | AI：%s | 操作：%s", aiName, operation);
-        sendLog(userId, description, "AI操作", timeoutException, 0, System.currentTimeMillis() - timeout, null, url);
+        sendLog(userId, description, "AI操作", e, 0, System.currentTimeMillis(), null, url);
     }
     
     /**

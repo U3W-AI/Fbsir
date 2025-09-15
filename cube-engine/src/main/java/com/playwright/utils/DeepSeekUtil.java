@@ -922,7 +922,7 @@ public class DeepSeekUtil {
                 }
             } catch (TimeoutError e) {
                 // 记录超时异常
-                UserLogUtil.sendAITimeoutLog(userId, "DeepSeek", "发送消息", 30000, "输入框填写或发送按钮点击", url + "/saveLogInfo");
+                UserLogUtil.sendAITimeoutLog(userId, "DeepSeek", "发送消息", e, "输入框填写或发送按钮点击", url + "/saveLogInfo");
                 return "获取内容失败：发送消息超时 - " + e.getMessage();
             } catch (Exception e) {
                 // 记录发送消息异常
@@ -939,7 +939,7 @@ public class DeepSeekUtil {
             
         } catch (TimeoutError e) {
             // 记录DeepSeek整体操作超时
-            UserLogUtil.sendAITimeoutLog(userId, "DeepSeek", "AI对话处理", 300000, "整个对话流程", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, "DeepSeek", "AI对话处理", e, "整个对话流程", url + "/saveLogInfo");
             throw e;
         } catch (Exception e) {
             // 记录DeepSeek处理异常
