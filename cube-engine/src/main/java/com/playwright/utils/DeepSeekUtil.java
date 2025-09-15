@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
 import com.playwright.entity.UserInfoRequest;
@@ -346,7 +347,8 @@ public class DeepSeekUtil {
                                 return "DeepSeek错误: " + errorResult;
                             }
                         } catch (Exception e) {
-                            // 忽略评估错误
+                            // 记录页面评估异常
+                            UserLogUtil.sendAIBusinessLog(userId, aiName, "页面错误检测", "评估页面错误时发生异常：" + e.getMessage(), System.currentTimeMillis(), "http://localhost:8080" + "/saveLogInfo");
                         }
                         
                         // 只有在从未有过内容且等待很长时间的情况下才报错
@@ -918,7 +920,13 @@ public class DeepSeekUtil {
                 } else {
                     return "获取内容失败：未找到输入框";
                 }
+            } catch (TimeoutError e) {
+                // 记录超时异常
+                UserLogUtil.sendAITimeoutLog(userId, "DeepSeek", "发送消息", 30000, "输入框填写或发送按钮点击", url + "/saveLogInfo");
+                return "获取内容失败：发送消息超时 - " + e.getMessage();
             } catch (Exception e) {
+                // 记录发送消息异常
+                UserLogUtil.sendAIBusinessLog(userId, "DeepSeek", "发送消息", "发送消息出错：" + e.getMessage(), System.currentTimeMillis(), url + "/saveLogInfo");
                 return "获取内容失败：发送消息出错 - " + e.getMessage();
             }
             
@@ -929,7 +937,13 @@ public class DeepSeekUtil {
             // 返回内容
             return content;
             
+        } catch (TimeoutError e) {
+            // 记录DeepSeek整体操作超时
+            UserLogUtil.sendAITimeoutLog(userId, "DeepSeek", "AI对话处理", 300000, "整个对话流程", url + "/saveLogInfo");
+            throw e;
         } catch (Exception e) {
+            // 记录DeepSeek处理异常
+            UserLogUtil.sendAIExceptionLog(userId, "DeepSeek", "handleDeepSeekAI", e, System.currentTimeMillis(), "AI对话处理失败", url + "/saveLogInfo");
             throw e;
         }
     }
@@ -1212,7 +1226,8 @@ public class DeepSeekUtil {
                     webSocketClientService.sendMessage(chatData.toJSONString());
                 }
             } catch (Exception e) {
-                // 忽略错误
+                // 记录URL提取异常
+                UserLogUtil.sendAIBusinessLog(userId, "DeepSeek", "URL提取", "提取分享链接失败：" + e.getMessage(), System.currentTimeMillis(), url + "/saveLogInfo");
             }
             
             // 2. 生成最后一组对话的长截图（参考百度的处理方案）

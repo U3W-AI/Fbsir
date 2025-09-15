@@ -47,43 +47,32 @@ public class MessageScreenshot {
                         // 获取最后一个容器（最新的回复）
                         const lastContainer = containers[containers.length - 1];
                         
-                        // 暂时移除高度限制，获取完整内容高度
-                        const originalStyle = {
-                            height: lastContainer.style.height,
-                            maxHeight: lastContainer.style.maxHeight,
-                            overflow: lastContainer.style.overflow
-                        };
-                        
-                        lastContainer.style.height = 'auto';
-                        lastContainer.style.maxHeight = 'none';
-                        lastContainer.style.overflow = 'visible';
-                        
-                        // 滚动到容器顶部
+                        // 滚动到容器顶部，确保完全可见
                         lastContainer.scrollIntoView({ behavior: 'auto', block: 'start' });
                         
-                        // 获取容器的完整尺寸信息
+                        // 等待滚动完成
+                        setTimeout(() => {}, 500);
+                        
+                        // 获取容器的完整尺寸信息（包括滚动内容）
                         const rect = lastContainer.getBoundingClientRect();
                         const scrollHeight = lastContainer.scrollHeight;
                         const scrollWidth = lastContainer.scrollWidth;
                         
-                        // 恢复原始样式
-                        lastContainer.style.height = originalStyle.height;
-                        lastContainer.style.maxHeight = originalStyle.maxHeight;
-                        lastContainer.style.overflow = originalStyle.overflow;
-                        
-                        // 添加一些边距确保内容不被截断
-                        const padding = 40;
-                        const bottomMargin = 120;
+                        // 确保获取完整的内容区域，添加适当边距
+                        const padding = 20;
+                        const bottomMargin = 50;
                         
                         return {
                             success: true,
-                            x: Math.max(0, rect.x - padding / 2),
-                            y: Math.max(0, rect.y - 20),
-                            width: Math.max(rect.width, scrollWidth) + padding,
-                            height: Math.max(rect.height, scrollHeight) + bottomMargin,
+                            x: Math.max(0, rect.x - padding),
+                            y: Math.max(0, rect.y - padding),
+                            width: Math.max(rect.width, scrollWidth) + padding * 2,
+                            height: Math.max(rect.height, scrollHeight) + bottomMargin + padding,
                             scrollHeight: scrollHeight,
                             scrollWidth: scrollWidth,
-                            containerCount: containers.length
+                            containerCount: containers.length,
+                            actualHeight: rect.height,
+                            actualWidth: rect.width
                         };
                     } catch (e) {
                         return { success: false, message: e.toString() };
@@ -108,13 +97,8 @@ public class MessageScreenshot {
             System.out.println(String.format("容器尺寸: x=%.0f, y=%.0f, width=%.0f, height=%.0f, scrollHeight=%.0f", 
                 containerX, containerY, containerWidth, containerHeight, scrollHeight));
 
-            // 如果内容高度较小，直接单次截图
-            if (scrollHeight <= 3000) {
-                return captureSingleContainerScreenshot(page, uploadUrl, containerInfo, originalViewport);
-            } else {
-                // 内容很长，使用分段截图然后拼接
-                return captureContainerWithSegments(page, uploadUrl, containerInfo, originalViewport);
-            }
+            // 🔥 新的策略：无论内容多大，都尝试单次完整截图
+            return captureCompleteContainerScreenshot(page, uploadUrl, containerInfo, originalViewport);
 
         } catch (Exception e) {
             System.err.println("截取最后一个回复容器失败: " + e.getMessage());
@@ -135,6 +119,136 @@ public class MessageScreenshot {
                     System.err.println("清理临时文件失败: " + e.getMessage());
                 }
             }
+        }
+    }
+
+    /**
+     * 完整截图捕获整个容器（新的优化方案）
+     */
+    private String captureCompleteContainerScreenshot(Page page, String uploadUrl, Map<String, Object> containerInfo, ViewportSize originalViewport) {
+        try {
+            double containerX = getDoubleValue(containerInfo, "x");
+            double containerY = getDoubleValue(containerInfo, "y");
+            double containerWidth = getDoubleValue(containerInfo, "width");
+            double containerHeight = getDoubleValue(containerInfo, "height");
+            double scrollHeight = getDoubleValue(containerInfo, "scrollHeight");
+
+            System.out.println(String.format("准备完整截图 - 容器位置: x=%.0f, y=%.0f, 截图尺寸: %.0fx%.0f", 
+                containerX, containerY, containerWidth, containerHeight));
+
+            // 🔥 关键优化：设置足够大的视口以容纳整个内容
+            int viewportWidth = Math.max(1920, (int) Math.ceil(containerWidth) + 200);
+            int viewportHeight = Math.max(1080, (int) Math.ceil(containerHeight) + 200);
+            
+            page.setViewportSize(viewportWidth, viewportHeight);
+            page.waitForTimeout(800); // 等待视口调整完成
+
+            // 🔥 确保容器完全可见并展开所有内容
+            page.evaluate("""
+                () => {
+                    try {
+                        const containers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                        if (containers.length > 0) {
+                            const lastContainer = containers[containers.length - 1];
+                            
+                            // 移除任何高度限制，确保内容完全展开
+                            lastContainer.style.height = 'auto';
+                            lastContainer.style.maxHeight = 'none';
+                            lastContainer.style.overflow = 'visible';
+                            
+                            // 展开所有可能的折叠内容
+                            const expandButtons = lastContainer.querySelectorAll('[data-testid="expand-button"], .expand-btn, .more-btn');
+                            expandButtons.forEach(btn => {
+                                try { btn.click(); } catch(e) {}
+                            });
+                            
+                            // 滚动到容器顶部
+                            lastContainer.scrollIntoView({ behavior: 'auto', block: 'start' });
+                            
+                            // 确保页面滚动到合适位置
+                            const rect = lastContainer.getBoundingClientRect();
+                            if (rect.top < 50) {
+                                window.scrollBy(0, rect.top - 50);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('展开容器内容失败:', e);
+                    }
+                }
+            """);
+            
+            page.waitForTimeout(1000); // 等待内容展开和滚动完成
+
+            // 🔥 重新获取展开后的容器尺寸
+            Map<String, Object> updatedContainerInfo = (Map<String, Object>) page.evaluate("""
+                () => {
+                    try {
+                        const containers = document.querySelectorAll('div._4f9bf79.d7dc56a8._43c05b5');
+                        if (containers.length === 0) return null;
+                        
+                        const lastContainer = containers[containers.length - 1];
+                        const rect = lastContainer.getBoundingClientRect();
+                        
+                        // 获取页面边界
+                        const pageWidth = Math.max(document.documentElement.scrollWidth, window.innerWidth);
+                        const pageHeight = Math.max(document.documentElement.scrollHeight, window.innerHeight);
+                        
+                        const padding = 20;
+                        
+                        return {
+                            x: Math.max(0, rect.x - padding),
+                            y: Math.max(0, rect.y - padding),
+                            width: Math.min(rect.width + padding * 2, pageWidth),
+                            height: Math.min(rect.height + padding * 2, pageHeight - rect.y + padding),
+                            pageWidth: pageWidth,
+                            pageHeight: pageHeight
+                        };
+                    } catch (e) {
+                        return null;
+                    }
+                }
+            """);
+
+            if (updatedContainerInfo != null) {
+                containerX = getDoubleValue(updatedContainerInfo, "x");
+                containerY = getDoubleValue(updatedContainerInfo, "y");
+                containerWidth = getDoubleValue(updatedContainerInfo, "width");
+                containerHeight = getDoubleValue(updatedContainerInfo, "height");
+            }
+
+            // 验证截图参数
+            if (containerWidth <= 0 || containerHeight <= 0) {
+                System.err.println("截图参数无效，使用全屏截图");
+                return captureFullPageScreenshot(page, uploadUrl);
+            }
+
+            System.out.println(String.format("最终截图参数: x=%.0f, y=%.0f, width=%.0f, height=%.0f", 
+                containerX, containerY, containerWidth, containerHeight));
+
+            // 创建截图路径
+            Path screenshotPath = Paths.get(System.getProperty("java.io.tmpdir"),
+                    "deepseek_complete_container_" + UUID.randomUUID() + ".png");
+
+            // 🔥 执行完整容器截图
+            page.screenshot(new Page.ScreenshotOptions()
+                    .setPath(screenshotPath)
+                    .setClip(containerX, containerY, containerWidth, containerHeight));
+
+            // 上传并获取URL
+            String result = uploadFile(uploadUrl, screenshotPath.toString());
+            JSONObject jsonObject = JSONObject.parseObject(result);
+            String shareImgUrl = jsonObject.getString("url");
+
+            // 清理临时文件
+            Files.deleteIfExists(screenshotPath);
+
+            System.out.println("完整容器截图完成: " + shareImgUrl);
+            return shareImgUrl;
+
+        } catch (Exception e) {
+            System.err.println("完整容器截图失败: " + e.getMessage());
+            e.printStackTrace();
+            return captureFullPageScreenshot(page, uploadUrl);
         }
     }
 

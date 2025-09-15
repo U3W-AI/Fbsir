@@ -4,6 +4,7 @@ import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.ElementHandle;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.LoadState;
 import com.playwright.entity.UnPersisBrowserContextInfo;
 import com.playwright.entity.UserInfoRequest;
@@ -58,13 +59,13 @@ public class TencentUtil {
     private WebSocketClientService webSocketClientService;
 
     /**
-     *
      * 检查元宝登录状态
-     * @param userId
-     * @return
-     * @throws InterruptedException
+     * @param userId 用户ID
+     * @return 登录状态信息
+     * @throws InterruptedException 中断异常
      */
     public String checkLogin(String userId) throws InterruptedException {
+        long startTime = System.currentTimeMillis();
         try {
             UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
             BrowserContext browserContext = browserContextInfo.getBrowserContext();
@@ -76,55 +77,89 @@ public class TencentUtil {
             if (phone.count() > 0) {
                 String phoneText = phone.textContent();
                 if (phoneText.equals("未登录")) {
+                    // 记录登录状态异常
+                    UserLogUtil.sendLoginStatusLog(userId, "腾讯元宝", "用户未登录", url + "/saveLogInfo");
                     return "false";
                 }
+                // 记录登录检查成功
+                UserLogUtil.sendAISuccessLog(userId, "腾讯元宝", "登录检查", "登录状态正常：" + phoneText, startTime, url + "/saveLogInfo");
                 return phoneText;
             } else {
+                // 记录元素不可见异常
+                UserLogUtil.sendElementNotVisibleLog(userId, "腾讯元宝", "//p[@class='nick-info-name']", page.url(), url + "/saveLogInfo");
                 return "false";
             }
+        } catch (TimeoutError e) {
+            // 记录超时异常
+            UserLogUtil.sendAITimeoutLog(userId, "腾讯元宝", "登录检查", 30000, "页面加载或元素定位", url + "/saveLogInfo");
+            throw e;
         } catch (Exception e) {
+            // 记录其他异常
+            UserLogUtil.sendAIExceptionLog(userId, "腾讯元宝", "checkLogin", e, startTime, "登录状态检查失败", url + "/saveLogInfo");
             throw e;
         }
     }
 
     public Page getPage(String type, String userId) {
-        UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
+        long startTime = System.currentTimeMillis();
+        try {
+            UnPersisBrowserContextInfo browserContextInfo = BrowserContextFactory.getBrowserContext(userId, 2);
 
-        // 检查浏览器上下文是否创建成功
-        if (browserContextInfo == null || browserContextInfo.getBrowserContext() == null) {
-            String errorMsg = "浏览器上下文创建失败，无法执行元宝智能体任务";
-            logInfo.sendTaskLog(errorMsg, userId, "元包智能体");
+            // 检查浏览器上下文是否创建成功
+            if (browserContextInfo == null || browserContextInfo.getBrowserContext() == null) {
+                String errorMsg = "浏览器上下文创建失败，无法执行元宝智能体任务";
+                logInfo.sendTaskLog(errorMsg, userId, "腾讯元宝");
+                
+                // 使用增强日志记录
+                UserLogUtil.sendAIBusinessLog(userId, "腾讯元宝", "浏览器初始化", errorMsg, startTime, url + "/saveLogInfo");
 
-            // 发送错误响应
-            try {
-                logInfo.sendResData(errorMsg, userId, "元包智能体", "RETURN_YB_RES", "", "");
-            } catch (Exception e) {
+                // 发送错误响应
+                try {
+                    logInfo.sendResData(errorMsg, userId, "腾讯元宝", "RETURN_YB_RES", "", "");
+                } catch (Exception e) {
+                    UserLogUtil.sendAIExceptionLog(userId, "腾讯元宝", "getPage", e, startTime, "发送错误响应失败", url + "/saveLogInfo");
+                }
+                return null;
             }
-        }
 
-        BrowserContext context = null;
-        if (browserContextInfo != null) {
-            context = browserContextInfo.getBrowserContext();
-        }
-        List<Page> pages = context.pages();
+            BrowserContext context = browserContextInfo.getBrowserContext();
+            List<Page> pages = context.pages();
 
-        // 检查页面是否可用
-        if (pages == null || pages.size() < 2) {
-            String errorMsg = "浏览器页面不足，需要至少2个页面，当前页面数: " + (pages != null ? pages.size() : 0);
-            logInfo.sendTaskLog(errorMsg, userId, "元包智能体");
+            // 检查页面是否可用
+            if (pages == null || pages.size() < 2) {
+                String errorMsg = "浏览器页面不足，需要至少2个页面，当前页面数: " + (pages != null ? pages.size() : 0);
+                logInfo.sendTaskLog(errorMsg, userId, "腾讯元宝");
+                
+                // 使用增强日志记录
+                UserLogUtil.sendAIBusinessLog(userId, "腾讯元宝", "页面检查", errorMsg, startTime, url + "/saveLogInfo");
 
-            // 发送错误响应
-            try {
-                logInfo.sendResData(errorMsg, userId, "元包智能体", "RETURN_YB_RES", "", "");
-            } catch (Exception e) {
+                // 发送错误响应
+                try {
+                    logInfo.sendResData(errorMsg, userId, "腾讯元宝", "RETURN_YB_RES", "", "");
+                } catch (Exception e) {
+                    UserLogUtil.sendAIExceptionLog(userId, "腾讯元宝", "getPage", e, startTime, "发送错误响应失败", url + "/saveLogInfo");
+                }
+                return null;
             }
+            
+            Page targetPage = null;
+            if (type.equals("T1")) {
+                targetPage = pages.get(0);
+            } else if (type.equals("DS")) {
+                targetPage = pages.get(1);
+            }
+            
+            if (targetPage != null) {
+                // 记录页面获取成功
+                UserLogUtil.sendAISuccessLog(userId, "腾讯元宝", "页面获取", "成功获取" + type + "页面", startTime, url + "/saveLogInfo");
+            }
+            
+            return targetPage;
+            
+        } catch (Exception e) {
+            UserLogUtil.sendAIExceptionLog(userId, "腾讯元宝", "getPage", e, startTime, "获取页面失败，类型：" + type, url + "/saveLogInfo");
+            return null;
         }
-        if (type.equals("T1")) {
-            return pages.get(0);
-        } else if (type.equals("DS")) {
-            return pages.get(1);
-        }
-        return null;
     }
 
     /**
@@ -242,8 +277,14 @@ public class TencentUtil {
             userInfoRequest.setShareImgUrl(sharImgUrl);
             RestUtils.post(url + "/saveDraftContent", userInfoRequest);
             return copiedText;
+        } catch (TimeoutError e) {
+            // 记录超时异常
+            UserLogUtil.sendAITimeoutLog(userId, agentName, "智能体任务执行", 60000, "等待回答生成或分享操作", url + "/saveLogInfo");
+            logInfo.sendTaskLog("执行超时：" + e.getMessage(), userId, agentName);
         } catch (Exception e) {
-            UserLogUtil.sendExceptionLog(userId, agentName + "执行异常", "saveAgentDraftData", e, url + "/saveLogInfo");
+            // 记录智能体业务执行异常
+            UserLogUtil.sendAIBusinessLog(userId, agentName, "智能体任务执行", e.getMessage(), System.currentTimeMillis(), url + "/saveLogInfo");
+            logInfo.sendTaskLog("执行异常：" + e.getMessage(), userId, agentName);
         } finally {
             // 无论成功还是异常，都取消定时截图任务
             screenshotFuture.cancel(false);
@@ -439,25 +480,54 @@ public class TencentUtil {
                 screenshotExecutor.shutdown();
             }
             AtomicReference<String> shareUrlRef = new AtomicReference<>();
+            
+            // 🔥 修复Lambda表达式中变量必须是final的问题
+            final String finalUserId = userId;
+            final String finalAgentName = agentName;
+            final String finalAiName = aiName;
+            final String finalUrl = url;
 
             clipboardLockManager.runWithClipboardLock(() -> {
                 try {
+                    // 🔥 修复：确保分享按钮可见并点击
+                    logInfo.sendTaskLog("正在点击分享按钮...", finalUserId, finalAgentName);
+                    
+                    // 等待分享按钮出现并点击
+                    page.waitForSelector("span.icon-yb-ic_share_2504", new Page.WaitForSelectorOptions().setTimeout(10000));
                     page.locator("span.icon-yb-ic_share_2504").last().click();
                     Thread.sleep(2000);
+                    
+                    // 确保分享选项出现
+                    page.waitForSelector("div.agent-chat__share-bar__item__logo", new Page.WaitForSelectorOptions().setTimeout(5000));
+                    
+                    // 点击复制链接（第一个选项）
                     page.locator("div.agent-chat__share-bar__item__logo").first().click();
-                    // 建议适当延迟等待内容更新
-                    Thread.sleep(2000); // 根据实际加载速度调整
+                    logInfo.sendTaskLog("已点击复制链接按钮", finalUserId, finalAgentName);
+                    
+                    // 等待剪贴板更新
+                    Thread.sleep(3000);
                     String shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
+                    logInfo.sendTaskLog("获取到剪贴板内容: " + shareUrl, finalUserId, finalAgentName);
+                    
                     Pattern pattern = Pattern.compile("https://yuanbao\\.tencent\\.com/[^\s\"']+");
                     Matcher matcher = pattern.matcher(shareUrl);
 
-                    String url = null;
+                    String extractedUrl = null;
                     if (matcher.find()) {
-                        url = matcher.group();
+                        extractedUrl = matcher.group();
+                        logInfo.sendTaskLog("提取到分享链接: " + extractedUrl, finalUserId, finalAgentName);
+                    } else {
+                        logInfo.sendTaskLog("未能提取到有效的分享链接，原始内容: " + shareUrl, finalUserId, finalAgentName);
                     }
-                    shareUrlRef.set(url);
+                    shareUrlRef.set(extractedUrl);
+                } catch (TimeoutError e) {
+                    // 记录分享操作超时
+                    logInfo.sendTaskLog("分享按钮点击超时: " + e.getMessage(), finalUserId, finalAgentName);
+                    UserLogUtil.sendAITimeoutLog(finalUserId, finalAiName, "分享链接获取", 30000, "点击分享按钮或复制链接", finalUrl + "/saveLogInfo");
                 } catch (Exception e) {
-                    UserLogUtil.sendExceptionLog(userId, aiName + "任务执行异常", "saveDraftData", e, url + "/saveLogInfo");
+                    // 记录分享操作异常
+                    logInfo.sendTaskLog("分享操作异常: " + e.getMessage(), finalUserId, finalAgentName);
+                    UserLogUtil.sendAIBusinessLog(finalUserId, finalAiName, "分享操作", e.getMessage(), System.currentTimeMillis(), finalUrl + "/saveLogInfo");
                 }
             });
 
@@ -465,15 +535,35 @@ public class TencentUtil {
             String shareUrl = shareUrlRef.get();
             String sharImgUrl = "";
             if (agentName.contains("腾讯元宝")) {
-                page.locator("div.agent-chat__share-bar__item__logo").nth(1).click();
-                sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
-                    try {
-                        page.locator("div.hyc-photo-view__control__btn-download").click();
-                        Thread.sleep(3000);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
+                try {
+                    logInfo.sendTaskLog("正在生成分享图片...", userId, agentName);
+                    
+                    // 点击生成图片按钮（第二个选项）
+                    page.locator("div.agent-chat__share-bar__item__logo").nth(1).click();
+                    Thread.sleep(2000);
+                    
+                    // 等待图片生成并下载
+                    page.waitForSelector("div.hyc-photo-view__control__btn-download", new Page.WaitForSelectorOptions().setTimeout(15000));
+                    
+                    sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
+                        try {
+                            page.locator("div.hyc-photo-view__control__btn-download").click();
+                            Thread.sleep(3000);
+                            logInfo.sendTaskLog("图片下载完成", finalUserId, finalAgentName);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                    
+                    if (sharImgUrl != null && !sharImgUrl.isEmpty()) {
+                        logInfo.sendTaskLog("分享图片上传成功: " + sharImgUrl, userId, agentName);
+                    } else {
+                        logInfo.sendTaskLog("分享图片上传失败", userId, agentName);
                     }
-                });
+                } catch (Exception e) {
+                    logInfo.sendTaskLog("生成分享图片失败: " + e.getMessage(), userId, agentName);
+                    // 即使截图失败，也继续执行后续逻辑
+                }
             }
 
             try {
@@ -493,24 +583,52 @@ public class TencentUtil {
                         return McpResult.fail(copiedText, shareUrl);
                     }
                 } else if (aiName.contains("hunyuan")) {
-                    logInfo.sendTaskLog("执行完成", userId, "腾讯元宝T1");
+                    // 🔥 修复腾讯元宝T1结果处理
+                    logInfo.sendTaskLog("腾讯元宝T1执行完成，正在发送结果...", userId, "腾讯元宝T1");
                     logInfo.sendChatData(page, "/chat/([^/]+)/([^/]+)", userId, "RETURN_YBT1_CHATID", 2);
-                    logInfo.sendResData(copiedText, userId, "腾讯元宝T1", "RETURN_YBT1_RES", shareUrl, sharImgUrl);
+                    
+                    // 确保有内容才发送
+                    if (copiedText != null && !copiedText.trim().isEmpty()) {
+                        logInfo.sendResData(copiedText, userId, "腾讯元宝T1", "RETURN_YBT1_RES", shareUrl, sharImgUrl);
+                        logInfo.sendTaskLog("腾讯元宝T1结果已发送到前端", userId, "腾讯元宝T1");
+                    } else {
+                        logInfo.sendTaskLog("腾讯元宝T1内容为空，跳过发送", userId, "腾讯元宝T1");
+                    }
                 } else if (aiName.contains("deepseek")) {
-                    logInfo.sendTaskLog("执行完成", userId, "腾讯元宝DS");
+                    // 🔥 修复腾讯元宝DS结果处理
+                    logInfo.sendTaskLog("腾讯元宝DS执行完成，正在发送结果...", userId, "腾讯元宝DS");
                     logInfo.sendChatData(page, "/chat/([^/]+)/([^/]+)", userId, "RETURN_YBDS_CHATID", 2);
-                    logInfo.sendResData(copiedText, userId, "腾讯元宝T1", "RETURN_YBDS_RES", shareUrl, sharImgUrl);
+                    
+                    // 确保有内容才发送，并修正AI名称
+                    if (copiedText != null && !copiedText.trim().isEmpty()) {
+                        logInfo.sendResData(copiedText, userId, "腾讯元宝DS", "RETURN_YBDS_RES", shareUrl, sharImgUrl);
+                        logInfo.sendTaskLog("腾讯元宝DS结果已发送到前端", userId, "腾讯元宝DS");
+                    } else {
+                        logInfo.sendTaskLog("腾讯元宝DS内容为空，跳过发送", userId, "腾讯元宝DS");
+                    }
                 }
             } catch (InterruptedException e) {
-//                忽略
+                logInfo.sendTaskLog("线程被中断: " + e.getMessage(), userId, agentName);
+            } catch (Exception e) {
+                logInfo.sendTaskLog("结果处理异常: " + e.getMessage(), userId, agentName);
             }
 
-            userInfoRequest.setDraftContent(copiedText);
-            userInfoRequest.setAiName("腾讯元宝-" + aiName);
-            userInfoRequest.setShareUrl(shareUrl);
-            userInfoRequest.setShareImgUrl(sharImgUrl);
-            RestUtils.post(url + "/saveDraftContent", userInfoRequest);
-            return McpResult.success(copiedText, shareUrl);
+            // 🔥 确保数据库保存逻辑正确执行
+            try {
+                userInfoRequest.setDraftContent(copiedText);
+                userInfoRequest.setAiName("腾讯元宝-" + aiName);
+                userInfoRequest.setShareUrl(shareUrl);
+                userInfoRequest.setShareImgUrl(sharImgUrl);
+                
+                Object saveResult = RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+                logInfo.sendTaskLog("内容已保存到稿库: " + (saveResult != null ? "成功" : "失败"), userId, agentName);
+                
+                return McpResult.success(copiedText, shareUrl);
+            } catch (Exception e) {
+                logInfo.sendTaskLog("保存到稿库失败: " + e.getMessage(), userId, agentName);
+                // 即使保存失败，也返回成功，让前端能显示内容
+                return McpResult.success(copiedText, shareUrl);
+            }
         } catch (Exception e) {
             UserLogUtil.sendExceptionLog(userId, aiName + "任务执行异常", "saveDraftData", e, url + "/saveLogInfo");
         }
@@ -650,7 +768,7 @@ public class TencentUtil {
                     break;
                 }
 
-                if(userInfoRequest.getAiName().contains("stream")) {
+                if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
                     webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
                 }
                 // 更新上次内容为当前内容
@@ -659,7 +777,7 @@ public class TencentUtil {
                 // 等待 2 秒后再次检查
                 page.waitForTimeout(2000);  // 等待2秒
             }
-            if(userInfoRequest.getAiName().contains("stream")) {
+            if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
                 //延迟3秒结束，确保剩余内容全部输出
                 Thread.sleep(3000);
                 webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), userInfoRequest.getAiName());

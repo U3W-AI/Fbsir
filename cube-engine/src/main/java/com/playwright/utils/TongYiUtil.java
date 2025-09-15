@@ -2,8 +2,10 @@ package com.playwright.utils;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.TimeoutError;
 import com.playwright.entity.UserInfoRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -11,11 +13,21 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 通义千问AI工具类
+ * 提供与通义千问AI交互的自动化操作功能
+ * @author 优立方
+ * @version JDK 17
+ * @date 2025年05月27日 10:33
+ */
 @Component
 public class TongYiUtil {
 
     @Autowired
     private LogMsgUtil logInfo;
+    
+    @Value("${cube.url}")
+    private String url;
 
     /**
      * 处理通义千问的特殊模式切换（深度思考/联网搜索）
@@ -25,6 +37,7 @@ public class TongYiUtil {
      * @param aiName AI名称
      */
     private void handleCapabilitySwitch(Page page, String roles, String userId, String aiName) {
+        long startTime = System.currentTimeMillis();
         try {
             String desiredMode = "";
             if (roles.contains("ty-qw-sdsk")) {
@@ -46,6 +59,8 @@ public class TongYiUtil {
                     closeButton.click();
                     page.waitForTimeout(1500);
                 } else {
+                    // 记录模式已正确
+                    UserLogUtil.sendAISuccessLog(userId, aiName, "模式切换", "模式已正确设置为：" + desiredMode, startTime, url + "/saveLogInfo");
                     return;
                 }
             }
@@ -55,8 +70,18 @@ public class TongYiUtil {
                 Locator buttonContainer = page.locator(".operateLine--gpbLU2Fi");
                 buttonContainer.getByText(desiredMode).click();
                 page.waitForTimeout(1500);
+                
+                // 记录模式切换成功
+                UserLogUtil.sendAISuccessLog(userId, aiName, "模式切换", "成功切换到：" + desiredMode, startTime, url + "/saveLogInfo");
             }
+        } catch (TimeoutError e) {
+            // 记录模式切换超时
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "模式切换", 30000, "等待模式按钮或切换操作", url + "/saveLogInfo");
+            logInfo.sendTaskLog("切换特殊模式时发生超时", userId, aiName);
+            throw e;
         } catch (Exception e) {
+            // 记录模式切换异常
+            UserLogUtil.sendAIBusinessLog(userId, aiName, "模式切换", "切换特殊模式时发生错误：" + e.getMessage(), startTime, url + "/saveLogInfo");
             logInfo.sendTaskLog("切换特殊模式时发生严重错误", userId, aiName);
             throw e;
         }
@@ -72,6 +97,7 @@ public class TongYiUtil {
         String userId = userInfoRequest.getUserId();
         String aiName = "通义千问";
         Map<String, String> resultMap = new HashMap<>();
+        long startTime = System.currentTimeMillis();
 
         try {
             // 切换特殊模式
@@ -104,9 +130,20 @@ public class TongYiUtil {
                 resultMap.put("sessionId", "");
                 logInfo.sendTaskLog("未能在URL中捕获会话ID", userId, aiName);
             }
+            
+            // 记录处理成功
+            UserLogUtil.sendAISuccessLog(userId, aiName, "请求处理", "成功完成通义千问请求处理", startTime, url + "/saveLogInfo");
             return resultMap;
 
+        } catch (TimeoutError e) {
+            // 记录处理超时
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "请求处理", 600000, "整个请求处理流程", url + "/saveLogInfo");
+            logInfo.sendTaskLog("处理通义千问请求时发生超时", userId, aiName);
+            resultMap.put("rawHtmlContent", "获取内容失败：超时");
+            throw e;
         } catch (Exception e) {
+            // 记录处理异常
+            UserLogUtil.sendAIExceptionLog(userId, aiName, "processQianwenRequest", e, startTime, "处理通义千问请求失败", url + "/saveLogInfo");
             logInfo.sendTaskLog("处理通义千问请求时发生错误", userId, aiName);
             resultMap.put("rawHtmlContent", "获取内容失败");
             throw e;
@@ -120,17 +157,20 @@ public class TongYiUtil {
      * @param aiName 智能体名称
      */
     public String waitTongYiHtmlDom(Page page, String userId, String aiName) {
+        long startTime = System.currentTimeMillis();
         try {
             String currentContent = "";
             String lastContent = "";
 
             long timeout = 600000;
-            long startTime = System.currentTimeMillis();
+            long operationStartTime = System.currentTimeMillis();
 
             while (true) {
-                long elapsedTime = System.currentTimeMillis() - startTime;
+                long elapsedTime = System.currentTimeMillis() - operationStartTime;
 
                 if (elapsedTime > timeout) {
+                    // 记录等待超时
+                    UserLogUtil.sendAITimeoutLog(userId, aiName, "内容等待", timeout, "等待AI回答完成", url + "/saveLogInfo");
                     logInfo.sendTaskLog("AI回答超时，任务中断", userId, aiName);
                     break;
                 }
@@ -154,10 +194,18 @@ public class TongYiUtil {
                 page.waitForTimeout(10000);
             }
             logInfo.sendTaskLog(aiName + "内容已自动提取完成", userId, aiName);
-
+            
+            // 记录内容提取成功
+            UserLogUtil.sendAISuccessLog(userId, aiName, "内容提取", "成功提取通义千问回答内容", startTime, url + "/saveLogInfo");
             return currentContent;
 
+        } catch (TimeoutError e) {
+            // 记录内容提取超时
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "内容提取", 600000, "等待内容稳定", url + "/saveLogInfo");
+            throw e;
         } catch (Exception e) {
+            // 记录内容提取异常
+            UserLogUtil.sendAIExceptionLog(userId, aiName, "waitTongYiHtmlDom", e, startTime, "内容提取失败", url + "/saveLogInfo");
             throw e;
         }
     }

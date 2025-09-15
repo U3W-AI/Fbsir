@@ -73,13 +73,29 @@ public class BaiduUtil {
 
             // 优先检查是否有登录按钮（未登录的关键标志）
             try {
-                String loginButtonSelector = "//*[@id=\"app\"]/div/div[1]/div[2]/div/div";
-                Locator loginButtonElement = page.locator(loginButtonSelector);
+                // 新的登录按钮选择器，支持多种可能的结构
+                String[] loginButtonSelectors = {
+                    ".login-btn", // 新的登录按钮类名
+                    ".login-btn div", // 登录按钮内部div
+                    "div[data-click-log*='login_button']", // 通过data-click-log属性定位
+                    "div[data-show-ext*='login_button']", // 通过data-show-ext属性定位
+                    "//*[@id=\"app\"]/div/div[1]/div[2]/div/div", // 旧的选择器作为备用
+                    "button:has-text('登录')", // 通用登录按钮
+                    "div:has-text('登录')" // 通用登录div
+                };
 
-                if (loginButtonElement.count() > 0 && loginButtonElement.isVisible()) {
-                    String buttonText = loginButtonElement.textContent();
-                    if (buttonText != null && (buttonText.contains("登录") || buttonText.contains("登陆"))) {
-                        return "false"; // 存在登录按钮，说明未登录
+                for (String selector : loginButtonSelectors) {
+                    try {
+                        Locator loginButtonElement = page.locator(selector);
+                        if (loginButtonElement.count() > 0 && loginButtonElement.isVisible()) {
+                            String buttonText = loginButtonElement.textContent();
+                                                         if (buttonText != null && (buttonText.contains("登录") || buttonText.contains("登陆"))) {
+                                 return "false"; // 存在登录按钮，说明未登录
+                             }
+                        }
+                    } catch (Exception selectorException) {
+                        // 继续尝试下一个选择器
+                        continue;
                     }
                 }
             } catch (Exception e) {
@@ -1155,15 +1171,41 @@ public class BaiduUtil {
                 return screenshotUtil.screenshotAndUpload(page, "getBaiduLoggedIn.png");
             }
 
-            // 查找并点击登录按钮
-            String loginButtonSelector = "//*[@id=\"app\"]/div/div[1]/div[2]/div/div";
-            Locator loginButton = page.locator(loginButtonSelector);
+            // 查找并点击登录按钮 - 支持多种登录按钮结构
+            String[] loginButtonSelectors = {
+                ".login-btn", // 新的登录按钮类名
+                ".login-btn div", // 登录按钮内部div
+                "div[data-click-log*='login_button']", // 通过data-click-log属性定位
+                "div[data-show-ext*='login_button']", // 通过data-show-ext属性定位
+                "//*[@id=\"app\"]/div/div[1]/div[2]/div/div", // 旧的选择器作为备用
+                "button:has-text('登录')", // 通用登录按钮
+                "div:has-text('登录')" // 通用登录div
+            };
 
-            if (loginButton.count() > 0 && loginButton.isVisible()) {
-                String buttonText = loginButton.textContent();
-                logInfo.sendTaskLog("找到登录按钮，文本内容: " + buttonText, userId, "百度AI");
+            Locator loginButton = null;
+            String usedSelector = "";
+            
+            // 尝试多个选择器找到登录按钮
+            for (String selector : loginButtonSelectors) {
+                try {
+                    Locator tempButton = page.locator(selector);
+                    if (tempButton.count() > 0 && tempButton.isVisible()) {
+                        String buttonText = tempButton.textContent();
+                        if (buttonText != null && (buttonText.contains("登录") || buttonText.contains("登陆"))) {
+                            loginButton = tempButton;
+                            usedSelector = selector;
+                            logInfo.sendTaskLog("找到登录按钮，选择器: " + selector + "，文本内容: " + buttonText, userId, "百度AI");
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    // 继续尝试下一个选择器
+                    continue;
+                }
+            }
 
-                if (buttonText != null && (buttonText.contains("登录") || buttonText.contains("登陆"))) {
+            if (loginButton != null) {
+                try {
                     // 点击登录按钮
                     loginButton.click();
                     logInfo.sendTaskLog("已点击登录按钮，等待登录页面加载", userId, "百度AI");
@@ -1173,36 +1215,68 @@ public class BaiduUtil {
                     page.waitForLoadState(LoadState.NETWORKIDLE);
                     Thread.sleep(2000);
 
-                    // 截图并返回
+                    // 截图并返回二维码
                     logInfo.sendTaskLog("准备截图二维码", userId, "百度AI");
-                    Locator qrCodeArea = page.locator("#TANGRAM__PSP_11__qrcodeContent");
-                    byte[] qrCodeBytes = qrCodeArea.screenshot(new Locator.ScreenshotOptions().setTimeout(45000));
+                    
+                    // 尝试多个二维码选择器
+                    String[] qrCodeSelectors = {
+                        "#TANGRAM__PSP_11__qrcodeContent", // 原始选择器
+                        ".qr-code", // 通用二维码选择器
+                        ".login-qr", // 登录二维码选择器
+                        "[class*='qr']", // 包含qr的类名
+                        "[id*='qr']", // 包含qr的id
+                        ".passport-login-qrcode", // 百度登录二维码
+                        "#qrcode" // 简单的二维码id
+                    };
+                    
+                    Locator qrCodeArea = null;
+                    for (String qrSelector : qrCodeSelectors) {
+                        try {
+                            Locator tempQr = page.locator(qrSelector);
+                            if (tempQr.count() > 0 && tempQr.isVisible()) {
+                                qrCodeArea = tempQr;
+                                logInfo.sendTaskLog("找到二维码区域，选择器: " + qrSelector, userId, "百度AI");
+                                break;
+                            }
+                        } catch (Exception e) {
+                            continue;
+                        }
+                    }
+                    
+                    if (qrCodeArea != null) {
+                        byte[] qrCodeBytes = qrCodeArea.screenshot(new Locator.ScreenshotOptions().setTimeout(45000));
 
-                    BufferedImage inputImage = ImageIO.read(new ByteArrayInputStream(qrCodeBytes));
+                        BufferedImage inputImage = ImageIO.read(new ByteArrayInputStream(qrCodeBytes));
 
-                    int newWidth = inputImage.getWidth() * 2;
-                    int newHeight = inputImage.getHeight() * 2;
+                        int newWidth = inputImage.getWidth() * 2;
+                        int newHeight = inputImage.getHeight() * 2;
 
-                    // 创建一个新的BufferedImage对象，用于存储放大后的图片
-                    BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
-                    Graphics2D g2d = resizedImage.createGraphics();
+                        // 创建一个新的BufferedImage对象，用于存储放大后的图片
+                        BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+                        Graphics2D g2d = resizedImage.createGraphics();
 
-                    // 绘制放大后的图片
-                    g2d.drawImage(inputImage, 0, 0, newWidth, newHeight, null);
-                    g2d.dispose();
+                        // 绘制放大后的图片
+                        g2d.drawImage(inputImage, 0, 0, newWidth, newHeight, null);
+                        g2d.dispose();
 
-                    // 保存放大后的图片
-                    ImageIO.write(resizedImage, "png", new File("getBaiduQrCode.png"));
-                    String response = ScreenshotUtil.uploadFile(screenshotUtil.uploadUrl, "getBaiduQrCode.png");
-                    JSONObject jsonObject = JSONObject.parseObject(response);
-                    String url = jsonObject.get("url") + "";
-                    Files.delete(Paths.get("getBaiduQrCode.png"));
-                    return url;
-                } else {
-                    logInfo.sendTaskLog("登录按钮文本不匹配: " + buttonText, userId, "百度AI");
+                        // 保存放大后的图片
+                        ImageIO.write(resizedImage, "png", new File("getBaiduQrCode.png"));
+                        String response = ScreenshotUtil.uploadFile(screenshotUtil.uploadUrl, "getBaiduQrCode.png");
+                        JSONObject jsonObject = JSONObject.parseObject(response);
+                        String url = jsonObject.get("url") + "";
+                        Files.delete(Paths.get("getBaiduQrCode.png"));
+                        return url;
+                    } else {
+                        logInfo.sendTaskLog("未找到二维码区域，返回整页截图", userId, "百度AI");
+                        return screenshotUtil.screenshotAndUpload(page, "getBaiduLoginPageAfterClick.png");
+                    }
+                } catch (Exception clickException) {
+                    logInfo.sendTaskLog("点击登录按钮失败: " + clickException.getMessage(), userId, "百度AI");
+                    // 如果点击失败，返回当前页面截图
+                    return screenshotUtil.screenshotAndUpload(page, "getBaiduLoginClickError.png");
                 }
             } else {
-                logInfo.sendTaskLog("未找到登录按钮，按钮数量: " + loginButton.count(), userId, "百度AI");
+                logInfo.sendTaskLog("未找到任何登录按钮", userId, "百度AI");
             }
 
             // 如果没有找到登录按钮，直接截图当前页面

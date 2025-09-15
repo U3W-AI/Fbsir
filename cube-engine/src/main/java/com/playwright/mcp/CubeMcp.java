@@ -77,6 +77,7 @@ public class CubeMcp {
     }
 
     private McpResult startAi(UserInfoRequest userInfoRequest, String aiName, String methodName, String aiConfig) {
+        long startTime = System.currentTimeMillis();
         try {
             userInfoRequest.setTaskId(UUID.randomUUID().toString());
             String roles = userInfoRequest.getRoles();
@@ -86,6 +87,8 @@ public class CubeMcp {
                 userId = userInfoUtil.getUserIdByUnionId(unionId);
             }
             if (userId == null) {
+                // 记录权限验证失败
+                UserLogUtil.sendLoginStatusLog("未知用户", aiName, "用户权限验证失败，unionId：" + unionId, url + "/saveLogInfo");
                 return McpResult.fail("您无权限访问,请联系管理员", "");
             }
             userInfoRequest.setUserId(userId);
@@ -107,6 +110,8 @@ public class CubeMcp {
             }
             //TODO 后续添加其他AI的登录判断
             if (result == null || result.equals("false") || result.equals("未登录")) {
+                // 记录登录状态异常
+                UserLogUtil.sendLoginStatusLog(userId, aiName, "用户未登录或登录状态异常，检查结果：" + result, url + "/saveLogInfo");
                 return McpResult.fail("您未登录" + aiName, "");
             }
             if (roles != null && roles.contains(aiConfig)) {
@@ -130,17 +135,28 @@ public class CubeMcp {
                 //TODO 后续添加对其他AI判断执行
 
                 if (mcpResult == null || mcpResult.getCode() != 200) {
+                    // 记录AI调用失败
+                    String errorMsg = mcpResult != null ? mcpResult.getResult() : "返回结果为null";
+                    UserLogUtil.sendAIBusinessLog(userId, aiName, "AI调用", "AI调用失败，错误信息：" + errorMsg, startTime, url + "/saveLogInfo");
                     return McpResult.fail(aiName + "调用失败,请稍后重试", null);
                 }
                 if (mcpResult.getShareUrl() == null) {
+                    // 记录分享链接获取失败
+                    UserLogUtil.sendAIBusinessLog(userId, aiName, "分享链接获取", "对话链接获取失败", startTime, url + "/saveLogInfo");
                     return McpResult.fail("对话链接获取失败,请稍后重试", "");
                 }
+                
+                // 记录AI调用成功
+                UserLogUtil.sendAISuccessLog(userId, aiName, "AI调用", "成功调用并获取分享链接", startTime, url + "/saveLogInfo");
                 return McpResult.success(aiName + "调用成功", mcpResult.getShareUrl());
             }
+            // 记录不支持的AI类型
+            UserLogUtil.sendAIBusinessLog(userId, aiName, "AI配置检查", "用户没有该AI的使用权限，roles：" + roles, startTime, url + "/saveLogInfo");
             return McpResult.fail("暂不支持该AI", "");
         } catch (Exception e) {
-            UserLogUtil.sendExceptionLog(userInfoRequest.getUserId(),
-                    aiName + "任务执行异常", methodName, e, url + "/saveLogInfo");
+            // 使用增强的异常日志记录
+            UserLogUtil.sendAIExceptionLog(userInfoRequest.getUserId(), aiName, methodName, e, startTime, 
+                "AI任务执行异常，配置：" + aiConfig, url + "/saveLogInfo");
             return McpResult.fail(aiName + "调用异常,请联系管理员", null);
         }
     }
@@ -259,8 +275,9 @@ public class CubeMcp {
                 return McpResult.fail(res, null);
             }
         } catch (Exception e) {
-            UserLogUtil.sendExceptionLog(userInfoRequest.getUserId(),
-                    "投递到公众号任务执行异常", "ybMcp", e, url + "/saveLogInfo");
+            // 使用增强的异常日志记录
+            UserLogUtil.sendAIExceptionLog(userInfoRequest.getUserId(), "微信公众号", "投递到公众号", e, System.currentTimeMillis(),
+                "投递到公众号任务执行异常", url + "/saveLogInfo");
             return McpResult.fail("投递到公众号异常,请联系管理员", null);
         }
     }

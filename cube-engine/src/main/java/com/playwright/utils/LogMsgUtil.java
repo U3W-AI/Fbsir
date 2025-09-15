@@ -1,5 +1,6 @@
 package com.playwright.utils;
 
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.Page;
 import com.playwright.websocket.WebSocketClientService;
@@ -88,6 +89,19 @@ public class LogMsgUtil {
         resData.put("aiName",aiName);
         resData.put("type", type);
         resData.put("userId",userId);
+        
+        // 🔥 修复前端错误：添加 aiResponses 字段以兼容前端期望的数据格式
+        JSONObject aiResponse = new JSONObject();
+        aiResponse.put("content", copiedText);
+        aiResponse.put("shareUrl", shareUrl);
+        aiResponse.put("shareImgUrl", shareImgUrl);
+        aiResponse.put("aiName", aiName);
+        
+        JSONArray aiResponses = new JSONArray();
+        aiResponses.add(aiResponse);
+        resData.put("aiResponses", aiResponses);
+        
+        System.out.println("🔥 发送WebSocket消息到前端: " + type + " - " + aiName + " - 用户ID: " + userId);
         webSocketClientService.sendMessage(resData.toJSONString());
     }
 
