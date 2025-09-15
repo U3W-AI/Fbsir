@@ -180,6 +180,7 @@ public class BrowserContextFactory {
             BrowserContext browserContext = unPersisBrowserContextInfo.getBrowserContext();
             if (browserContext == null) {
                 map.remove(key);
+                BrowserController.loginMap.remove(key);
                 return;
             }
 //            处理过期上下文

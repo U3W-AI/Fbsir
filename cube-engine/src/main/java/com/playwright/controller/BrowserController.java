@@ -141,6 +141,11 @@ public class BrowserController {
     @Operation(summary = "检查通义AI登录状态", description = "返回用户名/手机号表示已登录，false 表示未登录")
     @GetMapping("/checkTongYiLogin")
     public String checkTongYiLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) {
+        String key = userId + "-ty";
+        if (loginMap.containsKey(key)) {
+            // 如果当前用户正在处理，则返回"处理中"
+            return loginMap.get(key);
+        }
         try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "ty")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://www.tongyi.com/");
@@ -159,6 +164,7 @@ public class BrowserController {
 
                     Locator userNameElement = page.locator(".userName");
                     if (userNameElement.count() > 0 && userNameElement.isVisible()) {
+                        loginMap.put(key, userNameElement.textContent());
                         // 返回获取到的用户名
                         return userNameElement.textContent();
                     }

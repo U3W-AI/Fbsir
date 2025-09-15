@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -48,7 +49,7 @@ public class DouBaoUtil {
                 long elapsedTime = System.currentTimeMillis() - operationStartTime;
                 if (elapsedTime > timeout) {
                     // 记录超时异常
-                    UserLogUtil.sendAITimeoutLog(userId, "豆包", "评分内容等待", timeout, "等待评分结果生成", url + "/saveLogInfo");
+                    UserLogUtil.sendAITimeoutLog(userId, "豆包", "评分内容等待", new TimeoutException("豆包运行超时"), "等待评分结果生成", url + "/saveLogInfo");
                     break;
                 }
 
@@ -89,7 +90,7 @@ public class DouBaoUtil {
 
         } catch (TimeoutError e) {
             // 记录超时异常
-            UserLogUtil.sendAITimeoutLog(userId, "豆包", "评分任务", 600000, "复制按钮等待或点击操作", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, "豆包", "评分任务", e, "复制按钮等待或点击操作", url + "/saveLogInfo");
             throw e;
         } catch (Exception e) {
             // 记录其他异常
@@ -149,7 +150,7 @@ public class DouBaoUtil {
             return copiedText;
         } catch (TimeoutError e) {
             // 记录超时异常
-            UserLogUtil.sendAITimeoutLog(userId, "豆包", "内容复制", 600000, "等待复制按钮或内容提取", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, "豆包", "内容复制", e, "等待复制按钮或内容提取", url + "/saveLogInfo");
             throw e;
         } catch (Exception e) {
             // 记录其他异常
@@ -232,7 +233,7 @@ public class DouBaoUtil {
 
         } catch (TimeoutError e) {
             // 记录超时异常
-            UserLogUtil.sendAITimeoutLog(userId, aiName, "HTML内容监控", 600000, "等待内容生成完成", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "HTML内容监控", e, "等待内容生成完成", url + "/saveLogInfo");
             throw e;
         } catch (Exception e) {
             // 记录其他异常
@@ -310,7 +311,7 @@ public class DouBaoUtil {
 
         } catch (TimeoutError e) {
             // 记录超时异常
-            UserLogUtil.sendAITimeoutLog(userId, aiName, "排版代码提取", 600000, "等待代码生成完成", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "排版代码提取", e, "等待代码生成完成", url + "/saveLogInfo");
             throw e;
         } catch (Exception e) {
             // 记录其他异常

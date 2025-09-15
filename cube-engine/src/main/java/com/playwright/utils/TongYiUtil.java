@@ -4,12 +4,15 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.TimeoutError;
 import com.playwright.entity.UserInfoRequest;
+import com.playwright.entity.mcp.McpResult;
+import com.playwright.websocket.WebSocketClientService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -25,6 +28,9 @@ public class TongYiUtil {
 
     @Autowired
     private LogMsgUtil logInfo;
+
+    @Autowired
+    private WebSocketClientService webSocketClientService;
     
     @Value("${cube.url}")
     private String url;
@@ -76,7 +82,7 @@ public class TongYiUtil {
             }
         } catch (TimeoutError e) {
             // 记录模式切换超时
-            UserLogUtil.sendAITimeoutLog(userId, aiName, "模式切换", 30000, "等待模式按钮或切换操作", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "模式切换", e, "等待模式按钮或切换操作", url + "/saveLogInfo");
             logInfo.sendTaskLog("切换特殊模式时发生超时", userId, aiName);
             throw e;
         } catch (Exception e) {
@@ -116,7 +122,7 @@ public class TongYiUtil {
             logInfo.sendTaskLog("开启自动监听任务，持续监听" + aiName + "回答中", userId, aiName);
 
             // 获取原始回答HTML
-            String rawHtmlContent = waitTongYiHtmlDom(page, userId, aiName);
+            String rawHtmlContent = waitTongYiHtmlDom(page, userId, aiName, userInfoRequest);
             resultMap.put("rawHtmlContent", rawHtmlContent);
 
             // 捕获当前会话的 sessionId
@@ -137,7 +143,7 @@ public class TongYiUtil {
 
         } catch (TimeoutError e) {
             // 记录处理超时
-            UserLogUtil.sendAITimeoutLog(userId, aiName, "请求处理", 600000, "整个请求处理流程", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "请求处理", e, "整个请求处理流程", url + "/saveLogInfo");
             logInfo.sendTaskLog("处理通义千问请求时发生超时", userId, aiName);
             resultMap.put("rawHtmlContent", "获取内容失败：超时");
             throw e;
@@ -156,11 +162,12 @@ public class TongYiUtil {
      * @param userId 用户ID
      * @param aiName 智能体名称
      */
-    public String waitTongYiHtmlDom(Page page, String userId, String aiName) {
+    public String waitTongYiHtmlDom(Page page, String userId, String aiName, UserInfoRequest userInfoRequest) {
         long startTime = System.currentTimeMillis();
         try {
             String currentContent = "";
             String lastContent = "";
+            String textContent = "";
 
             long timeout = 600000;
             long operationStartTime = System.currentTimeMillis();
@@ -170,7 +177,7 @@ public class TongYiUtil {
 
                 if (elapsedTime > timeout) {
                     // 记录等待超时
-                    UserLogUtil.sendAITimeoutLog(userId, aiName, "内容等待", timeout, "等待AI回答完成", url + "/saveLogInfo");
+                    UserLogUtil.sendAITimeoutLog(userId, aiName, "内容等待", new TimeoutException("通义千问超时"), "等待AI回答完成", url + "/saveLogInfo");
                     logInfo.sendTaskLog("AI回答超时，任务中断", userId, aiName);
                     break;
                 }
@@ -184,7 +191,10 @@ public class TongYiUtil {
 
 //                currentContent = outputLocator.innerHTML();
                 currentContent = outputLocator.innerText();
-
+                textContent = outputLocator.textContent();
+                if(userInfoRequest.getAiName().contains("stream")) {
+                    webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
+                }
                 if (!currentContent.isEmpty() && currentContent.equals(lastContent)) {
                     logInfo.sendTaskLog(aiName + "回答完成，正在自动提取内容", userId, aiName);
                     break;
@@ -194,14 +204,16 @@ public class TongYiUtil {
                 page.waitForTimeout(10000);
             }
             logInfo.sendTaskLog(aiName + "内容已自动提取完成", userId, aiName);
-            
+            if(userInfoRequest.getAiName().contains("stream")) {
+                webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), userInfoRequest.getAiName());
+            }
             // 记录内容提取成功
             UserLogUtil.sendAISuccessLog(userId, aiName, "内容提取", "成功提取通义千问回答内容", startTime, url + "/saveLogInfo");
             return currentContent;
 
         } catch (TimeoutError e) {
             // 记录内容提取超时
-            UserLogUtil.sendAITimeoutLog(userId, aiName, "内容提取", 600000, "等待内容稳定", url + "/saveLogInfo");
+            UserLogUtil.sendAITimeoutLog(userId, aiName, "内容提取", e, "等待内容稳定", url + "/saveLogInfo");
             throw e;
         } catch (Exception e) {
             // 记录内容提取异常
