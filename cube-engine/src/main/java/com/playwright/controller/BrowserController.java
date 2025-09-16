@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.AriaRole;
 import com.microsoft.playwright.options.LoadState;
+import com.microsoft.playwright.options.WaitForSelectorState;
 import com.playwright.entity.UnPersisBrowserContextInfo;
 import com.playwright.utils.*;
 import com.playwright.websocket.WebSocketClientService;
@@ -52,6 +53,11 @@ public class BrowserController {
     @Autowired
     private DeepSeekUtil deepSeekUtil;
 
+    @Autowired
+    private ZhiHuUtil zhiHuUtil;
+
+    @Value("${cube.url}")
+    private String url;
     public static final ConcurrentHashMap<String, String> loginMap = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Integer> lockMap = new ConcurrentHashMap<>();
 
@@ -98,6 +104,7 @@ public class BrowserController {
         }
     }
 
+
     /**
      * 检查秘塔登录状态
      * @param userId 用户唯一标识
@@ -106,6 +113,11 @@ public class BrowserController {
     @Operation(summary = "检查秘塔登录状态", description = "返回登录表示已登录，false 表示未登录")
     @GetMapping("/checkMetasoLogin")
     public String checkMetasoLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
+        String key = userId + "-mt";
+        if (loginMap.containsKey(key)) {
+            // 如果当前用户正在处理，则返回"处理中"
+            return loginMap.get(key);
+        }
         try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"metaso")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://metaso.cn/");
@@ -120,6 +132,7 @@ public class BrowserController {
                 Locator phone = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
                 if(phone.count()>0){
                     String phoneText = phone.textContent();
+                    loginMap.put(key,phoneText);
                     return phoneText;
                 } else {
                     return "false";
@@ -130,8 +143,6 @@ public class BrowserController {
             throw e;
         }
     }
-
-
 
     /**
      * 检查通义AI登录状态
@@ -714,6 +725,174 @@ public class BrowserController {
         }
     }
 
-    public void checkLogin(String number) {
+    /**
+     * 获取知乎登录二维码
+     * @param userId 用户唯一标识
+     * @return 二维码图片URL 或 "false"表示失败
+     */
+    @GetMapping("/getZhihuQrCode")
+    @Operation(summary = "获取知乎登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
+    public String getZhihuQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"Zhihu")) {
+            Page page = browserUtil.getOrCreatePage(context);
+            page.navigate("https://www.zhihu.com/signin");
+            page.setDefaultTimeout(120000);
+            page.waitForLoadState();
+            Thread.sleep(3000);
+
+            // 首先检查是否已经登录
+            String currentUrl = page.url();
+            if (!currentUrl.contains("signin")) {
+                // 已经登录，直接返回登录状态
+                JSONObject loginStatusObject = new JSONObject();
+                loginStatusObject.put("status", "已登录");
+                loginStatusObject.put("userId", userId);
+                loginStatusObject.put("type", "RETURN_ZHIHU_STATUS");
+                webSocketClientService.sendMessage(loginStatusObject.toJSONString());
+
+                return screenshotUtil.screenshotAndUpload(page, "zhihuAlreadyLogin.png");
+            }
+
+            // 查找并点击扫码登录选项卡（如果存在）
+            try {
+                Locator qrCodeTab = page.locator("div[role='tab']:has-text('扫码登录'), .login-tab:has-text('扫码登录')");
+                if (qrCodeTab.count() > 0) {
+                    qrCodeTab.first().click();
+                    Thread.sleep(1000);
+                }
+            } catch (Exception e) {
+                UserLogUtil.sendExceptionLog(userId, "知乎切换扫码标签页", "getZhihuQrCode", e, url + "/saveLogInfo");
+            }
+
+            // 等待二维码加载
+            try {
+                Locator qrCodeArea = page.locator(".Qrcode, .qrcode, canvas, img[src*='qr']");
+                if (qrCodeArea.count() > 0) {
+                    qrCodeArea.first().waitFor(new Locator.WaitForOptions()
+                            .setState(WaitForSelectorState.VISIBLE)
+                            .setTimeout(10000));
+                } else {
+                }
+            } catch (Exception e) {
+                UserLogUtil.sendExceptionLog(userId, "知乎等待二维码加载", "getZhihuQrCode", e, url + "/saveLogInfo");
+
+            }
+
+            // 截图并上传二维码
+            String qrCodeUrl = screenshotUtil.screenshotAndUpload(page, "zhihuQrCode_" + userId + ".png");
+
+            // 发送二维码URL到前端
+            JSONObject qrCodeObject = new JSONObject();
+            qrCodeObject.put("url", qrCodeUrl);
+            qrCodeObject.put("userId", userId);
+            qrCodeObject.put("type", "RETURN_PC_ZHIHU_QRURL");
+            webSocketClientService.sendMessage(qrCodeObject.toJSONString());
+
+
+            // 监听登录状态变化 - 最多等待60秒
+            int maxAttempts = 30; // 30次尝试，每次2秒
+            boolean loginSuccess = false;
+            String finalUserName = "false";
+
+            for (int i = 0; i < maxAttempts; i++) {
+
+
+                try {
+                    Thread.sleep(2000);
+                    // 检查当前页面URL是否已经跳转（登录成功）
+                    String nowUrl = page.url();
+
+                    if (!nowUrl.contains("signin") && !nowUrl.contains("login")) {
+
+                        // 验证登录状态并获取用户名
+                        String userName = zhiHuUtil.checkLoginStatus(page);
+                        if (!"false".equals(userName)) {
+                            finalUserName = userName;
+                            loginSuccess = true;
+                            break;
+                        } else {
+                        }
+                        break;
+                    }
+
+                    // 检查登录页面是否有错误提示或状态变化
+                    Locator errorMsg = page.locator(".Error, .error, .ErrorMessage, [class*='error']");
+                    if (errorMsg.count() > 0) {
+                        String errorText = errorMsg.first().textContent();
+                        if (errorText != null && !errorText.trim().isEmpty()) {
+                        }
+                    }
+                } catch (Exception e) {
+                    UserLogUtil.sendExceptionLog(userId, "知乎登录状态检查", "getZhihuQrCode", e, url + "/saveLogInfo");
+                }
+            }
+
+            // 发送最终的登录状态
+            if (loginSuccess) {
+                JSONObject loginSuccessObject = new JSONObject();
+                loginSuccessObject.put("status", finalUserName);
+                loginSuccessObject.put("userId", userId);
+                loginSuccessObject.put("type", "RETURN_ZHIHU_STATUS");
+                webSocketClientService.sendMessage(loginSuccessObject.toJSONString());
+
+            } else {
+                // 超时未登录，发送超时提示
+                JSONObject timeoutObject = new JSONObject();
+                timeoutObject.put("status", "timeout");
+                timeoutObject.put("userId", userId);
+                timeoutObject.put("type", "RETURN_ZHIHU_LOGIN_TIMEOUT");
+                webSocketClientService.sendMessage(timeoutObject.toJSONString());
+
+            }
+
+            return qrCodeUrl;
+
+        } catch (Exception e) {
+            UserLogUtil.sendExceptionLog(userId, "获取知乎二维码", "getZhihuQrCode", e, url + "/saveLogInfo");
+        }
+        return "false";
+    }
+
+
+    /**
+     * 检查知乎登录状态
+     * @param userId 用户唯一标识
+     * @return 登录状态："false"表示未登录，用户名表示已登录
+     */
+    @Operation(summary = "检查知乎登录状态", description = "返回用户名表示已登录，false 表示未登录")
+    @GetMapping("/checkZhihuLogin")
+    public String checkZhihuLogin(@Parameter(description = "用户唯一标识")  @RequestParam("userId") String userId) throws InterruptedException {
+        String key = userId + "-zhzd";
+        if (loginMap.containsKey(key)) {
+            // 如果当前用户正在处理，则返回"处理中"
+            return loginMap.get(key);
+        }
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"Zhihu")) {
+            Page page = browserUtil.getOrCreatePage(context);
+
+            // 先导航到知乎首页而不是登录页面，这样能更好地检测登录状态
+            page.navigate("https://www.zhihu.com/");
+            page.waitForLoadState();
+            Thread.sleep(3000);
+
+            // 检查当前URL是否跳转到登录页面
+            String currentUrl = page.url();
+            if (currentUrl.contains("signin") || currentUrl.contains("login")) {
+                return "false";
+            }
+
+            // 检测登录状态
+            String userName = zhiHuUtil.checkLoginStatus(page);
+
+            if (!"false".equals(userName) && !"未登录".equals(userName)) {
+                loginMap.put(key, userName);
+                return userName;
+            }
+
+            return "false";
+
+        } catch (Exception e) {
+            throw e;
+        }
     }
 }

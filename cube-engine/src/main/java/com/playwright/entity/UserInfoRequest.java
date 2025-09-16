@@ -51,6 +51,12 @@ public class UserInfoRequest {
     @ToolParam(description = "通义千问的聊天会话 ID",required = false)
     private String tyChatId;
 
+    @ToolParam(description = "知乎直答的聊天会话 ID",required = false)
+    private String zhzdChatId;
+
+    @ToolParam(description = "秘塔的聊天会话 ID",required = false)
+    private String metasoChatId;
+
     @ToolParam(description = "是否为新对话。true 表示清空上下文重新开始", required = false)
     private String isNewChat;
 
