@@ -104,6 +104,18 @@ public class WebSocketClientService {
                     String aiName = userInfoRequest.getAiName();
                     // 处理包含"使用F8S"的消息
                     if(message.contains("使用F8S")){
+                        if (message.contains("zhzd-chat")) {
+                            // 使用带去重功能的任务提交，防止重复调用
+                            concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
+                                startAI(userInfoRequest, aiName, "知乎直答", browserController, aigcController);
+                            }, "智谱AI", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
+                        }
+                        // 处理包含"metaso"的消息
+                        if(message.contains("mita")){
+                            concurrencyManager.submitBrowserTask(() -> {
+                                startAI(userInfoRequest, aiName, "秘塔", browserController, aigcController);
+                            }, "Metaso智能体", userInfoRequest.getUserId());
+                        }
                         // 处理包含"yb-hunyuan"或"yb-deepseek"的消息
                         if(message.contains("yb-hunyuan-pt") || message.contains("yb-deepseek-pt")){
                             concurrencyManager.submitBrowserTask(() -> {
@@ -202,6 +214,61 @@ public class WebSocketClientService {
                                 }
                             }, "通义千问", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
+                    }
+
+                    // 处理获取知乎二维码的消息
+                    if(message.contains("PLAY_GET_ZHIHU_QRCODE")){
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                browserController.getZhihuQrCode(userInfoRequest.getUserId());
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "获取知乎二维码", userInfoRequest.getUserId());
+                    }
+
+                    // 处理检查知乎登录状态的消息
+                    if (message.contains("PLAY_CHECK_ZHIHU_LOGIN")) {
+                        // 🚀 知乎状态检测使用高优先级，优先处理
+                        concurrencyManager.submitHighPriorityTask(() -> {
+                            try {
+                                String checkLogin = browserController.checkZhihuLogin(userInfoRequest.getUserId());
+                                userInfoRequest.setStatus(checkLogin);
+                                userInfoRequest.setType("RETURN_ZHIHU_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                                // 发送错误状态
+                                userInfoRequest.setStatus("false");
+                                userInfoRequest.setType("RETURN_ZHIHU_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            }
+                        }, "知乎登录检查", userInfoRequest.getUserId());
+                    }
+
+                    //  处理检查秘塔登录状态的信息
+                    if (message.contains("CHECK_METASO_LOGIN")) {
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                String checkLogin = browserController.checkMetasoLogin(userInfoRequest.getUserId());
+                                userInfoRequest.setStatus(checkLogin);
+                                userInfoRequest.setType("RETURN_METASO_STATUS");
+                                sendMessage(JSON.toJSONString(userInfoRequest));
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "Metaso登录检查", userInfoRequest.getUserId());
+                    }
+
+                    // 处理获取秘塔二维码的消息
+                    if(message.contains("PLAY_GET_METASO_QRCODE")){
+                        concurrencyManager.submitBrowserTask(() -> {
+                            try {
+                                browserController.getMetasoQrCode(userInfoRequest.getUserId());
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }, "获取Metaso二维码", userInfoRequest.getUserId());
                     }
 
                     // 处理检查DeepSeek登录状态的消息
@@ -509,9 +576,11 @@ public class WebSocketClientService {
         content.put("aiName", aiName);
         content.put("taskId", userInfoRequest.getTaskId());
         if("openAI".equals(userInfoRequest.getType()))  {
-            String result = mcpResult.getResult();
-            if(result == null || result.isEmpty()) {
+            String result = "";
+            if(mcpResult == null || mcpResult.getResult() == null || mcpResult.getResult().isEmpty()) {
                 result = aiName + "执行错误,请稍后重试";
+            } else {
+                result = mcpResult.getResult();
             }
             content.put("message", result);
         } else{
@@ -519,6 +588,45 @@ public class WebSocketClientService {
         }
         if (webSocketClient != null && webSocketClient.isOpen()) {
             webSocketClient.send(JSONObject.toJSONString(content));
+        }
+    }
+
+    public void startAI(UserInfoRequest userInfoRequest, String aiName, String cnName, BrowserController browserController, AIGCController aigcController) {
+        try {
+//            不同ai不同处理
+            String status = null;
+            switch (cnName) {
+                case "知乎直答" -> {
+                    status = browserController.checkZhihuLogin(userInfoRequest.getUserId());
+                }
+                case "秘塔" -> {
+                    status = browserController.checkMetasoLogin(userInfoRequest.getUserId());
+                }
+            }
+
+            if (status == null || status.equals("未登录") || status.equals("false")) {
+                sendMessage(userInfoRequest, McpResult.fail("请先前往后台登录" + cnName, null), aiName);
+                return;
+            }
+
+//            不同AI不同处理
+            McpResult mcpResult = null;
+            switch (cnName) {
+                case "知乎直答" -> {
+                    mcpResult = aigcController.startZHZD(userInfoRequest);
+                }
+                case "秘塔" -> {
+                    mcpResult = aigcController.startMetaso(userInfoRequest);
+                }
+            }
+
+
+            if (aiName.contains("stream")) {
+                return;
+            }
+            sendMessage(userInfoRequest, mcpResult, aiName);
+        } catch (Exception e) {
+            sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
         }
     }
 }

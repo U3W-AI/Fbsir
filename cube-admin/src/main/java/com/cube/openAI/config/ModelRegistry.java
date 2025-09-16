@@ -20,6 +20,8 @@ public class ModelRegistry {
         modelMap.put("yuan_bao_T1", new YuanBaoT1());
         modelMap.put("yuan_bao_DS", new YuanBaoDS());
         modelMap.put("tong_yi", new TongYi());
+        modelMap.put("zhi_hu_zhi_da", new ZhiHuZhiDa());
+        modelMap.put("metaso", new Metaso());
     }
 
     // 根据model名称获取模型实例

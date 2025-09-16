@@ -192,7 +192,7 @@ public class TongYiUtil {
 //                currentContent = outputLocator.innerHTML();
                 currentContent = outputLocator.innerText();
                 textContent = outputLocator.textContent();
-                if(userInfoRequest.getAiName().contains("stream")) {
+                if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
                     webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
                 }
                 if (!currentContent.isEmpty() && currentContent.equals(lastContent)) {
@@ -204,7 +204,7 @@ public class TongYiUtil {
                 page.waitForTimeout(10000);
             }
             logInfo.sendTaskLog(aiName + "内容已自动提取完成", userId, aiName);
-            if(userInfoRequest.getAiName().contains("stream")) {
+            if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
                 webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), userInfoRequest.getAiName());
             }
             // 记录内容提取成功

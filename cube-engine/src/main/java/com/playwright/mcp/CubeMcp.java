@@ -76,6 +76,18 @@ public class CubeMcp {
         return startAi(userInfoRequest, "通义千问", "qwMcp", "ty-qw");
     }
 
+    @Tool(name = "秘塔", description = "通过用户信息调用ai,需要用户unionId,ai配置信息,提示词")
+    public McpResult metasoMcp(@ToolParam(description = "用户调用信息,包括用户unionId,用户提示词,用户选择的ai配置信息")
+                               UserInfoRequest userInfoRequest) {
+        return startAi(userInfoRequest, "秘塔", "metasoMcp", "mita");
+    }
+
+    @Tool(name = "知乎直答", description = "通过用户信息调用ai,需要用户unionId,ai配置信息,提示词")
+    public McpResult zhzdMcp(@ToolParam(description = "用户调用信息,包括用户unionId,用户提示词,用户选择的ai配置信息")
+                             UserInfoRequest userInfoRequest) {
+        return startAi(userInfoRequest, "知乎直答", "zhzdMcp", "zhzd-chat");
+    }
+
     private McpResult startAi(UserInfoRequest userInfoRequest, String aiName, String methodName, String aiConfig) {
         long startTime = System.currentTimeMillis();
         try {
@@ -108,6 +120,12 @@ public class CubeMcp {
             if (aiName.contains("通义千问")) {
                 result = browserController.checkTongYiLogin(userId);
             }
+            if (aiName.contains("秘塔")) {
+                result = browserController.checkMetasoLogin(userId);
+            }
+            if (aiName.contains("知乎直答")) {
+                result = browserController.checkZhihuLogin(userId);
+            }
             //TODO 后续添加其他AI的登录判断
             if (result == null || result.equals("false") || result.equals("未登录")) {
                 // 记录登录状态异常
@@ -125,11 +143,17 @@ public class CubeMcp {
                 if (aiName.contains("百度")) {
                     mcpResult = aigcController.startBaidu(userInfoRequest);
                 }
-                if(aiName.contains("DeepSeek")){
+                if (aiName.contains("DeepSeek")) {
                     mcpResult = aigcController.startDS(userInfoRequest);
                 }
-                if(aiName.contains("通义千问")){
+                if (aiName.contains("通义千问")) {
                     mcpResult = aigcController.startTYQianwen(userInfoRequest);
+                }
+                if (aiName.contains("秘塔")) {
+                    mcpResult = aigcController.startMetaso(userInfoRequest);
+                }
+                if (aiName.contains("知乎直答")) {
+                    mcpResult = aigcController.startZHZD(userInfoRequest);
                 }
 
                 //TODO 后续添加对其他AI判断执行
@@ -145,7 +169,7 @@ public class CubeMcp {
                     UserLogUtil.sendAIBusinessLog(userId, aiName, "分享链接获取", "对话链接获取失败", startTime, url + "/saveLogInfo");
                     return McpResult.fail("对话链接获取失败,请稍后重试", "");
                 }
-                
+
                 // 记录AI调用成功
                 UserLogUtil.sendAISuccessLog(userId, aiName, "AI调用", "成功调用并获取分享链接", startTime, url + "/saveLogInfo");
                 return McpResult.success(aiName + "调用成功", mcpResult.getShareUrl());
@@ -155,8 +179,8 @@ public class CubeMcp {
             return McpResult.fail("暂不支持该AI", "");
         } catch (Exception e) {
             // 使用增强的异常日志记录
-            UserLogUtil.sendAIExceptionLog(userInfoRequest.getUserId(), aiName, methodName, e, startTime, 
-                "AI任务执行异常，配置：" + aiConfig, url + "/saveLogInfo");
+            UserLogUtil.sendAIExceptionLog(userInfoRequest.getUserId(), aiName, methodName, e, startTime,
+                    "AI任务执行异常，配置：" + aiConfig, url + "/saveLogInfo");
             return McpResult.fail(aiName + "调用异常,请联系管理员", null);
         }
     }
@@ -168,8 +192,8 @@ public class CubeMcp {
             String roles = userInfoRequest.getRoles();
             String unionId = userInfoRequest.getUnionId();
             String userId = userInfoRequest.getUserId();
-            if(userId != null && unionId == null) {
-                unionId  = userInfoUtil.getUnionIdByUserId(userId);
+            if (userId != null && unionId == null) {
+                unionId = userInfoUtil.getUnionIdByUserId(userId);
                 userInfoRequest.setUnionId(unionId);
             }
             if (unionId != null && !unionId.isEmpty() && userId == null) {
@@ -198,18 +222,18 @@ public class CubeMcp {
             JSONObject jsonObject = JSONObject.parseObject(json);
             String znpbPrompt = jsonObject.get("data").toString();
 
-            if(prompt.startsWith(znpbPrompt.substring(0, 10))) {
+            if (prompt.startsWith(znpbPrompt.substring(0, 10))) {
                 prompt = prompt.substring(znpbPrompt.length());
                 userInfoRequest.setUserPrompt("文本内容: `" + prompt + "`");
-            } else{
-                if(promptUrl != null) {
+            } else {
+                if (promptUrl != null) {
                     String getContentPrompt = promptUrl + " 获取以上链接内容";
 //                无需深度思考和联网搜索
                     userInfoRequest.setRoles("yb-deepseek-pt, znpb");
                     userInfoRequest.setUserPrompt(getContentPrompt);
                     McpResult mcpResult = aigcController.startYBOffice(userInfoRequest);
                     content = mcpResult.getResult();
-                    if(mcpResult.getCode() != 200 || content == null || content.isEmpty()) {
+                    if (mcpResult.getCode() != 200 || content == null || content.isEmpty()) {
                         return McpResult.fail("获取链接内容失败,请稍后重试", "");
                     }
                     userInfoRequest.setUserPrompt("文本内容: `" + content + "`");
@@ -228,7 +252,7 @@ public class CubeMcp {
             for (Item image : images) {
                 String name = image.getName();
                 if (name.contains(unionId)) {
-                    if(thumbMediaId == null && name.contains("封面")) {
+                    if (thumbMediaId == null && name.contains("封面")) {
                         thumbMediaId = image.getMedia_id();
                         continue;
                     }
@@ -238,7 +262,7 @@ public class CubeMcp {
                     imgInfoList.add(imgInfo);
                 }
             }
-            if(imgInfoList.isEmpty()) {
+            if (imgInfoList.isEmpty()) {
                 userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + " " + znpbPrompt);
             } else {
                 userInfoRequest.setUserPrompt(userInfoRequest.getUserPrompt() + ", 图片信息: {" + imgInfoList.toString() + "} " + znpbPrompt);
@@ -277,7 +301,7 @@ public class CubeMcp {
         } catch (Exception e) {
             // 使用增强的异常日志记录
             UserLogUtil.sendAIExceptionLog(userInfoRequest.getUserId(), "微信公众号", "投递到公众号", e, System.currentTimeMillis(),
-                "投递到公众号任务执行异常", url + "/saveLogInfo");
+                    "投递到公众号任务执行异常", url + "/saveLogInfo");
             return McpResult.fail("投递到公众号异常,请联系管理员", null);
         }
     }
@@ -380,7 +404,7 @@ public class CubeMcp {
                                               @ToolParam(description = "图片描述信息")
                                               String imgDescription) throws Exception {
         try {
-            McpResult mcpResult = generateImgMaterial(userInfoRequest,  "生成公众号文章封面," + imgDescription);
+            McpResult mcpResult = generateImgMaterial(userInfoRequest, "生成公众号文章封面," + imgDescription);
             if (mcpResult == null || mcpResult.getShareUrl() == null || mcpResult.getShareUrl().isEmpty()) {
                 return McpResult.fail("上传图片素材失败", "");
             }
@@ -433,7 +457,7 @@ public class CubeMcp {
             Map<String, Object> map = new HashMap<>();
             map.put("type", "image");
             map.put("unionId", unionId);
-            if(description.contains("文章封面")) {
+            if (description.contains("文章封面")) {
                 map.put("imgDescription", "封面");
             } else {
                 map.put("imgDescription", description);

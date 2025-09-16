@@ -10,14 +10,14 @@ import java.util.List;
 /**
  * @author muyou
  * dateStart 2024/8/4 9:34
- * dateNow   2025/9/8 17:19
+ * dateNow   2025/9/16 16:47
  */
 @Slf4j
-public class DouBao implements AIModel {
+public class ZhiHuZhiDa implements AIModel{
     @Override
     public String generate(List<Message> messages, Double temperature, Integer maxTokens) {
         try {
-            return AIResultUtil.waitForResult(messages, "db", "zj-db", false);
+            return AIResultUtil.waitForResult(messages, "zhzd", "zhzd-chat", false);
         } catch (Exception e) {
             log.error(e.getMessage());
             return e.getMessage();
@@ -27,7 +27,7 @@ public class DouBao implements AIModel {
     @Override
     public Flux<String> generateByStream(List<Message> messages, Double temperature, Integer maxTokens) {
         try {
-            return AIResultUtil.waitForResultByStream(messages, "db", "zj-db", "dou_bao");
+            return AIResultUtil.waitForResultByStream(messages, "zhzd", "zhzd-chat", "zhi_hu_zhi_da");
         } catch (InterruptedException e) {
             log.error(e.getMessage());
             return Flux.just(e.getMessage());

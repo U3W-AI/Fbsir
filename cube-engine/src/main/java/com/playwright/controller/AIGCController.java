@@ -63,7 +63,13 @@ public class AIGCController {
     @Autowired
     private DouBaoUtil douBaoUtil;
 
+    // 秘塔相关操作工具类
+    @Autowired
+    private MetasoUtil metasoUtil;
 
+    // 知乎直答相关操作工具类
+    @Autowired
+    private ZHZDUtil zhzdUtil;
 
     // 日志记录工具类
     @Autowired
@@ -1276,5 +1282,451 @@ public class AIGCController {
             throw e;
         }
         return McpResult.fail("图片生成失败", "");
+    }
+    /**
+     * 处理秘塔的常规请求
+     *
+     * @param userInfoRequest 包含会话ID和用户指令
+     * @return AI生成的文本内容
+     */
+    @Operation(summary = "启动秘塔AI生成", description = "调用秘塔AI平台生成内容并抓取结果")
+    @ApiResponse(responseCode = "200", description = "处理成功", content = @Content(mediaType = "application/json"))
+    @PostMapping("/startMetaso")
+    public McpResult startMetaso(@RequestBody UserInfoRequest userInfoRequest) throws IOException, InterruptedException {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userInfoRequest.getUserId(), "metaso")) {
+
+            // 初始化变量
+            String userId = userInfoRequest.getUserId();
+            String metasoChatId = userInfoRequest.getMetasoChatId();
+            logInfo.sendTaskLog("秘塔准备就绪，正在打开页面", userId, "秘塔");
+            String roles = userInfoRequest.getRoles();
+            String userPrompt = userInfoRequest.getUserPrompt();
+
+            // 初始化页面并导航到指定会话测试用
+            Page page = browserUtil.getOrCreatePage(context);
+            if (metasoChatId != null && !metasoChatId.isEmpty()) {
+                page.navigate("https://metaso.cn/search/" + metasoChatId);
+            } else {
+                page.navigate("https://metaso.cn/");
+            }
+            page.waitForLoadState(LoadState.LOAD);
+            Thread.sleep(1000);
+            logInfo.sendTaskLog("秘塔页面打开完成", userId, "秘塔");
+
+
+            if (metasoChatId != null && !metasoChatId.isEmpty()) {
+                Thread.sleep(1000);
+                page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("继续追问")).click();
+                Thread.sleep(1000);
+                page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("继续追问")).fill(userPrompt);
+                logInfo.sendTaskLog("用户指令已自动输入完成", userId, "秘塔");
+                Thread.sleep(1000);
+                page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("继续追问")).press("Enter");
+                logInfo.sendTaskLog("指令已自动发送成功", userId, "秘塔");
+            } else {
+                if (roles.contains("metaso-jssk")) {
+                    // 定位极速思考按钮
+                    Thread.sleep(1000);
+                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
+                    Thread.sleep(3000);
+
+                    //点击极速思考按钮
+                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("极速·思考 快速思考，智力在线")).click();
+
+                    Thread.sleep(1000);
+
+                    logInfo.sendTaskLog("已启动极速思考模式", userId, "秘塔");
+                } else if (roles.contains("metaso-jisu")) {
+                    // 定位极速按钮
+                    Thread.sleep(1000);
+                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
+                    Thread.sleep(3000);
+
+                    //点击极速按钮
+                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("极速 快如闪电，直给答案")).click();
+
+                    Thread.sleep(1000);
+
+                    logInfo.sendTaskLog("已启动极速模式", userId, "秘塔");
+                } else if (roles.contains("metaso-csk")) {
+                    // 定位长思考按钮
+                    Thread.sleep(1000);
+                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
+                    Thread.sleep(3000);
+
+                    //点击长思考按钮
+                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("长思考·R1 DeepSeek-R1-0528模型")).click();
+
+                    Thread.sleep(1000);
+
+                    logInfo.sendTaskLog("已启动长思考模式", userId, "秘塔");
+                }
+
+                Thread.sleep(1000);
+                page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("请输入，Enter键发送，Shift+Enter键换行")).click();
+                Thread.sleep(1000);
+                page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("请输入，Enter键发送，Shift+Enter键换行")).fill(userPrompt);
+                logInfo.sendTaskLog("用户指令已自动输入完成", userId, "秘塔");
+                Thread.sleep(1000);
+                page.getByRole(AriaRole.TEXTBOX, new Page.GetByRoleOptions().setName("请输入，Enter键发送，Shift+Enter键换行")).press("Enter");
+                logInfo.sendTaskLog("指令已自动发送成功", userId, "秘塔");
+            }
+            Thread.sleep(3000);
+            //关闭搜索额度用尽弹窗
+            if (page.getByText("今日搜索额度已用尽").isVisible()) {
+                page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("明天再来")).click();
+                return McpResult.fail("今日搜索额度已用尽",  null);
+            }
+
+
+            // 创建定时截图线程深度研究
+            AtomicInteger i = new AtomicInteger(0);
+            ScheduledExecutorService screenshotExecutor = Executors.newSingleThreadScheduledExecutor();
+            // 启动定时任务，每5秒执行一次截图
+            ScheduledFuture<?> screenshotFuture = screenshotExecutor.scheduleAtFixedRate(() -> {
+                try {
+                    int currentCount = i.getAndIncrement(); // 获取当前值并自增
+                    logInfo.sendImgData(page, userId + "秘塔执行过程截图" + currentCount, userId);
+                } catch (Exception e) {
+                    UserLogUtil.sendExceptionLog(userId, "秘塔截图异常", "startMetaso", e, url + "/saveLogInfo");
+                }
+            }, 0, 8, TimeUnit.SECONDS);
+
+            logInfo.sendTaskLog("开启自动监听任务，持续监听秘塔回答中", userId, "秘塔");
+            //等待html片段获取完成
+            String copiedText = metasoUtil.waitMetasoHtmlDom(page, userId, "秘塔", userInfoRequest);
+            //关闭截图
+            screenshotFuture.cancel(false);
+            screenshotExecutor.shutdown();
+
+            AtomicReference<String> shareUrlRef = new AtomicReference<>();
+
+            clipboardLockManager.runWithClipboardLock(() -> {
+                try {
+                    // 点击分享链接按钮
+                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("分享")).click();
+                    // 等待加载
+                    Thread.sleep(1000);
+                    // 点击复制链接
+                    page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName("复制链接")).click();
+                    // 建议适当延迟等待内容更新
+                    Thread.sleep(1000);
+
+                    String shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
+                    shareUrlRef.set(shareUrl);
+                } catch (Exception e) {
+                    UserLogUtil.sendExceptionLog(userId, "秘塔复制链接异常", "startMetaso", e, url + "/saveLogInfo");
+                }
+            });
+
+            Thread.sleep(1000);
+            String shareUrl = shareUrlRef.get();
+            String sharImgUrl = "";
+            // 点击分享按钮
+            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("分享")).click();
+            Thread.sleep(1000);
+            // 点击生成图片按钮
+            sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
+                page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName("生成图片")).click();
+            });
+
+            logInfo.sendTaskLog("执行完成", userId, "秘塔");
+            logInfo.sendChatData(page, "/search/([^/?#]+)", userId, "RETURN_METASO_CHATID", 1);
+            logInfo.sendResData(copiedText, userId, "秘塔", "RETURN_METASO_RES", shareUrl, sharImgUrl);
+
+            //保存数据库
+            userInfoRequest.setDraftContent(copiedText);
+            userInfoRequest.setAiName("秘塔");
+            userInfoRequest.setShareUrl(shareUrl);
+            userInfoRequest.setShareImgUrl(sharImgUrl);
+            RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+            return McpResult.success(copiedText, shareUrl);
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    /**
+     * 启动知乎直答常规请求
+     *
+     * @param userInfoRequest 包含会话ID和用户指令
+     * @return 格式化后的AI生成的文本内容
+     */
+    @Operation(summary = "启动知乎直答生成", description = "调用知乎直答平台生成内容并抓取结果，最后进行统一格式化")
+    @ApiResponse(responseCode = "200", description = "处理成功", content = @Content(mediaType = "application/json"))
+    @PostMapping("/startZHZD")
+    public McpResult startZHZD(@RequestBody UserInfoRequest userInfoRequest) throws Exception {
+
+        String userId = userInfoRequest.getUserId();
+        String sessionId = userInfoRequest.getZhzdChatId();
+        String userPrompt = userInfoRequest.getUserPrompt();
+        String isNewChat = userInfoRequest.getIsNewChat();
+        String aiName = "知乎直答";
+
+
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "Zhihu")) {
+            logInfo.sendTaskLog(aiName + "准备就绪，正在打开页面", userId, aiName);
+
+            Page page = browserUtil.getOrCreatePage(context);
+
+            // 🔥 新增：检测知乎访问限制
+            try {
+                if ("true".equalsIgnoreCase(isNewChat) || sessionId == null || sessionId.isEmpty()) {
+                    logInfo.sendTaskLog("用户请求新会话", userId, aiName);
+                    page.navigate("https://zhida.zhihu.com");
+                } else {
+                    logInfo.sendTaskLog("检测到会话ID: " + sessionId + "，将继续使用此会话", userId, aiName);
+                    page.navigate("https://zhida.zhihu.com/search/" + sessionId);
+                }
+
+                page.waitForLoadState(LoadState.LOAD);
+                Thread.sleep(2000);
+
+                // 检测知乎访问限制
+                String accessCheckResult = (String) page.evaluate("""
+                            () => {
+                                const bodyText = document.body.innerText || document.body.textContent || '';
+                                const pageTitle = document.title || '';
+                                
+                                // 检查常见的访问限制提示
+                                const restrictionMessages = [
+                                    '您当前请求存在异常，暂时限制本次访问',
+                                    '暂时限制本次访问',
+                                    '请求存在异常',
+                                    '访问受限',
+                                    '您的访问出现了异常',
+                                    'b87ce5c3c1b4773c6a37cf0ae84ccfb1'
+                                ];
+                                
+                                for (const message of restrictionMessages) {
+                                    if (bodyText.includes(message) || pageTitle.includes(message)) {
+                                        return message;
+                                    }
+                                }
+                                
+                                // 检查是否有错误码
+                                if (bodyText.includes('40362') || bodyText.includes('error')) {
+                                    return 'access_restricted';
+                                }
+                                
+                                return null;
+                            }
+                        """);
+
+                if (accessCheckResult != null && !accessCheckResult.equals("null")) {
+
+                    // 直接返回错误信息给前端
+                    String errorMessage = "知乎访问受限，请稍后再试或通过手机摇一摇联系知乎小管家";
+                    logInfo.sendTaskLog(errorMessage, userId, aiName);
+                    logInfo.sendResData(errorMessage, userId, aiName, "RETURN_ZHZD_RES", "", "");
+
+                    // 保存错误信息到数据库
+                    userInfoRequest.setZhzdChatId(sessionId);
+                    userInfoRequest.setDraftContent(errorMessage);
+                    userInfoRequest.setAiName(aiName);
+                    userInfoRequest.setShareUrl("");
+                    userInfoRequest.setShareImgUrl("");
+                    RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+
+                    return McpResult.fail(errorMessage, "");
+                }
+
+            } catch (Exception e) {
+                // 继续执行正常流程
+            }
+            logInfo.sendTaskLog(aiName + "页面打开完成", userId, aiName);
+
+            // 创建定时截图线程
+            AtomicInteger i = new AtomicInteger(0);
+            ScheduledExecutorService screenshotExecutor = Executors.newSingleThreadScheduledExecutor();
+            ScheduledFuture<?> screenshotFuture = screenshotExecutor.scheduleAtFixedRate(() -> {
+                try {
+                    // 检查页面是否已关闭
+                    if (page.isClosed()) {
+                        return;
+                    }
+                    int currentCount = i.getAndIncrement();
+                    logInfo.sendImgData(page, userId + aiName + "执行过程截图" + currentCount, userId);
+                } catch (Exception e) {
+                    // 不发送技术错误到前端
+                }
+            }, 0, 8, TimeUnit.SECONDS);
+
+            String rawHtmlContent = zhzdUtil.processZHZDRequest(page, userInfoRequest);
+
+            // 获取sessionId
+            String currentUrl = page.url();
+            String[] currentUrlSplit = currentUrl.split("/");
+            sessionId = currentUrlSplit[currentUrlSplit.length - 1];
+
+            // 关闭截图线程
+            screenshotFuture.cancel(false);
+            screenshotExecutor.shutdown();
+
+            String formattedContent = rawHtmlContent;
+            String shareUrl = "";
+            String shareImgUrl = "";
+
+            // 格式化内容
+            try {
+                if (!rawHtmlContent.startsWith("获取内容失败") && !rawHtmlContent.isEmpty()) {
+                    Object finalFormattedContent = page.evaluate("""
+                            (content) => {
+                                try {
+                                    // 创建一个包装容器来处理原始HTML
+                                    const tempDiv = document.createElement('div');
+                                    tempDiv.innerHTML = content;
+                                                        
+                                    // 移除所有内联样式和不必要的div/span嵌套
+                                    const cleanUpElements = (element) => {
+                                        // 移除空的div和span标签
+                                        element.querySelectorAll('div, span').forEach(el => {
+                                            if (el.children.length === 0 && el.textContent.trim() === '') {
+                                                el.remove();
+                                            }
+                                        });
+                                                        
+                                        // 移除所有元素的内联样式
+                                        element.querySelectorAll('*').forEach(el => {
+                                            el.removeAttribute('style');
+                                            el.removeAttribute('class');
+                                        });
+                                                        
+                                        // 处理表格元素，添加基本样式
+                                        element.querySelectorAll('table').forEach(table => {
+                                            table.style.borderCollapse = 'collapse';
+                                            table.style.width = '100%';
+                                        });
+                                                        
+                                        element.querySelectorAll('th, td').forEach(cell => {
+                                            cell.style.border = '1px solid #ebebec';
+                                            cell.style.padding = '8px';
+                                            cell.style.textAlign = 'left';
+                                        });
+                                                        
+                                        element.querySelectorAll('th').forEach(th => {
+                                            th.style.backgroundColor = '#f8f8fa';
+                                            th.style.fontWeight = 'bold';
+                                        });
+                                    };
+                                                        
+                                    cleanUpElements(tempDiv);
+                                                        
+                                    // 创建最终容器
+                                    const styledContainer = document.createElement('div');
+                                    styledContainer.className = 'zhzd-response';
+                                    styledContainer.style.cssText = 'max-width: 800px; margin: 0 auto; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; font-family: Arial, sans-serif; line-height: 1.6; color: #333;';
+                                                        
+                                    // 将清理后的内容移入容器
+                                    styledContainer.innerHTML = tempDiv.innerHTML;
+                                                        
+                                    // 处理所有直接子元素，确保它们是带有正确样式的p标签
+                                    const processChildElements = (container) => {
+                                        container.childNodes.forEach(node => {
+                                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                                // 为所有直接子元素添加统一的段落样式
+                                                if (!['STYLE', 'SCRIPT'].includes(node.tagName)) {
+                                                    if (node.tagName === 'P') {
+                                                        node.style.margin = '0px 0px 16px';
+                                                        node.style.padding = '0px';
+                                                    } else if (node.tagName === 'H3') {
+                                                        node.style.margin = '0px 0px 16px';
+                                                        node.style.fontSize = '16px';
+                                                        node.style.fontWeight = '500';
+                                                        node.style.lineHeight = '27px';
+                                                    } else if (node.tagName === 'OL' || node.tagName === 'UL') {
+                                                        node.style.margin = '0px 0px 16px 25px';
+                                                        node.style.padding = '0px';
+                                                    } else if (node.tagName === 'LI') {
+                                                        node.style.whiteSpace = 'normal';
+                                                        node.style.margin = '0px 0px 16px';
+                                                    } else {
+                                                        // 将其他元素包装在p标签中
+                                                        const p = document.createElement('p');
+                                                        p.style.margin = '0px 0px 16px';
+                                                        p.style.padding = '0px';
+                                                        p.innerHTML = node.outerHTML;
+                                                        node.parentNode.replaceChild(p, node);
+                                                    }
+                                                }
+                                            }
+                                        });
+                                    };
+                                                        
+                                    processChildElements(styledContainer);
+                                                        
+                                    return styledContainer.outerHTML;
+                                } catch (e) {
+                                    console.error('格式化知乎直答内容时出错:', e);
+                                    return content;
+                                }
+                            }
+                            """, rawHtmlContent);
+
+                    if (finalFormattedContent != null && !finalFormattedContent.toString().isEmpty()) {
+                        formattedContent = finalFormattedContent.toString();
+                        logInfo.sendTaskLog("已将回答内容封装为统一的HTML展示样式", userId, aiName);
+                    }
+                }
+            } catch (Exception e) {
+                logInfo.sendTaskLog("内容格式化处理失败", userId, aiName);
+                // 不发送技术错误到前端
+            }
+
+            // 🔥 优化：Zhihu分享操作，增加超时保护
+            try {
+                page.locator("div:has-text('分享回答')").last().click(new Locator.ClickOptions().setTimeout(30000));
+                page.waitForTimeout(1000); // 增加等待时间
+                shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
+
+                if (shareUrl != null && !shareUrl.trim().isEmpty()) {
+                } else {
+                    shareUrl = page.url();
+                }
+
+                // 获取分享图片，增加超时保护
+                page.locator("div:has-text('保存图片')").last().click(new Locator.ClickOptions().setTimeout(30000));
+                shareImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
+                    page.locator("div:has-text('下载图片')").last().click(new Locator.ClickOptions().setTimeout(30000));
+                });
+
+                if (shareImgUrl != null && !shareImgUrl.trim().isEmpty()) {
+                } else {
+                }
+            } catch (Exception e) {
+                logInfo.sendTaskLog("获取分享链接处理失败", userId, aiName);
+                // 不发送技术错误到前端
+                // 尝试备用方法获取分享链接
+                try {
+                    shareUrl = page.url(); // 使用当前页面URL作为分享链接
+                } catch (Exception backupE) {
+                    shareUrl = ""; // 确保shareUrl不为null
+                }
+            }
+
+            try {
+                // 回传数据
+                logInfo.sendTaskLog("执行完成", userId, aiName);
+                logInfo.sendChatData(page, "/search/([^/?#]+)", userId, "RETURN_ZHZD_CHATID", 1);
+
+                logInfo.sendResData(formattedContent, userId, aiName, "RETURN_ZHZD_RES", shareUrl, shareImgUrl);
+
+                // 保存数据库
+                userInfoRequest.setZhzdChatId(sessionId);
+                userInfoRequest.setDraftContent(formattedContent);
+                userInfoRequest.setAiName(aiName);
+                userInfoRequest.setShareUrl(shareUrl);
+                userInfoRequest.setShareImgUrl(shareImgUrl);
+                RestUtils.post(url + "/saveDraftContent", userInfoRequest);
+            } catch (Exception e) {
+                logInfo.sendTaskLog("执行完成", userId, aiName);
+                logInfo.sendChatData(page, "/search/([^/?#]+)", userId, "RETURN_ZHZD_CHATID", 1);
+                logInfo.sendResData(formattedContent, userId, aiName, "RETURN_ZHZD_RES", shareUrl, shareImgUrl);
+            }
+            return McpResult.success(formattedContent, shareUrl);
+        } catch (Exception e) {
+            logInfo.sendTaskLog("执行知乎直答任务时发生严重错误", userInfoRequest.getUserId(), "知乎直答");
+            throw e;
+        }
     }
 }

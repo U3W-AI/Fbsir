@@ -20,9 +20,7 @@ public class StartupRunner {
     public void runAfterStartup() throws InterruptedException {
         // 输出系统基本信息
         printSystemInfo();
-        
 //         原有的登录检查（已注释）
-         browserController.checkLogin("22");
     }
     
     private void printSystemInfo() {

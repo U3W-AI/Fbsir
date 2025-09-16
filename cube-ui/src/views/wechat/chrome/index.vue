@@ -394,7 +394,7 @@
           metasoChatId: "",
           baiduChatId: "",
           deepseekChatId: "",
-
+          zhzdChatId: "",
 
           isNewChat: true,
         },
@@ -486,21 +486,38 @@
             progressLogs: [],
             isExpanded: true
           },
-          // {
-          //   name: "秘塔",
-          //   avatar: require("../../../assets/ai/Metaso.png"),
-          //   capabilities: [
-          //     { label: "极速", value: "fast" },
-          //     { label: "极速思考", value: "fast_thinking" },
-          //     { label: "长思考", value: "long_thinking" },
-          //   ],
-          //   selectedCapabilities: "fast",// 单选使用字符串
-          //   enabled: true,
-          //   status: "idle",
-          //   progressLogs: [],
-          //   isExpanded: true,
-          //   isSingleSelect: true,  // 添加单选标记,用于capabilities中状态只能多选一的时候改成true,然后把selectedCapabilities赋值为字符串，不要是数组
-          // },
+          {
+            name: "秘塔",
+            avatar: require("../../../assets/ai/Metaso.png"),
+            capabilities: [
+              { label: "极速", value: "fast" },
+              { label: "极速思考", value: "fast_thinking" },
+              { label: "长思考", value: "long_thinking" },
+            ],
+            selectedCapabilities: "fast",// 单选使用字符串
+            enabled: true,
+            status: "idle",
+            progressLogs: [],
+            isExpanded: true,
+            isSingleSelect: true,  // 添加单选标记,用于capabilities中状态只能多选一的时候改成true,然后把selectedCapabilities赋值为字符串，不要是数组
+          },
+          {
+            name: "知乎直答",
+            avatar: require("../../../assets/ai/ZHZD.png"),
+            capabilities: [
+              { label: "深度思考", value: "deep_thinking" },
+              { label: "全网搜索", value: "all_web_search" },
+              { label: "知乎搜索", value: "zhihu_search" },
+              { label: "学术搜索", value: "academic_search" },
+              { label: "我的知识库", value: "personal_knowledge" },
+            ],
+            selectedCapabilities: ['deep_thinking', 'all_web_search', 'zhihu_search', 'academic_search', 'personal_knowledge'],
+            enabled: true,
+            status: 'idle',
+            progressLogs: [],
+            isExpanded: true,
+            isSingleSelect: false,
+          },
 
         ],
         promptInput: "",
@@ -724,6 +741,38 @@
             }
             if(ai.selectedCapabilities.includes("web_search")) {
               this.userInfoReq.roles = this.userInfoReq.roles + "ds-lwss,";
+            }
+          }
+
+          if(ai.name === "秘塔") {
+            this.userInfoReq.roles = this.userInfoReq.roles + "mita,";
+            if(ai.selectedCapabilities === "fast") {
+              this.userInfoReq.roles = this.userInfoReq.roles + "metaso-jisu,";
+            }
+            if(ai.selectedCapabilities === "fast_thinking") {
+              this.userInfoReq.roles = this.userInfoReq.roles + "metaso-jssk,";
+            }
+            if(ai.selectedCapabilities === "long_thinking") {
+              this.userInfoReq.roles = this.userInfoReq.roles + "metaso-csk,";
+            }
+          }
+
+          if (ai.name === "知乎直答") {
+            this.userInfoReq.roles = this.userInfoReq.roles + "zhzd-chat,";
+            if (ai.selectedCapabilities.includes("deep_thinking")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "zhzd-sdsk,";
+            }
+            if (ai.selectedCapabilities.includes("all_web_search")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "zhzd-qw,";
+            }
+            if (ai.selectedCapabilities.includes("zhihu_search")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "zhzd-zh,";
+            }
+            if (ai.selectedCapabilities.includes("academic_search")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "zhzd-xs,";
+            }
+            if (ai.selectedCapabilities.includes("personal_knowledge")) {
+              this.userInfoReq.roles = this.userInfoReq.roles + "zhzd-wdzsk,";
             }
           }
 
@@ -960,6 +1009,8 @@
           this.userInfoReq.deepseekChatId = dataObj.chatId;
         } else if(dataObj.type === "RETURN_METASO_CHATID" && dataObj.chatId) {
           this.userInfoReq.metasoChatId = dataObj.chatId;
+        } else if(dataObj.type === "RETURN_ZHZD_CHATID" && dataObj.chatId) {
+          this.userInfoReq.zhzdChatId = dataObj.chatId;
         }
         else if(dataObj.type === 'RETURN_TY_CHATID' && dataObj.chatId) {
           this.userInfoReq.tyChatId = dataObj.chatId;
@@ -1085,8 +1136,10 @@
             console.log("收到秘塔消息:", dataObj);
             targetAI = this.enabledAIs.find((ai) => ai.name === "秘塔");
             break;
-
-
+          case "RETURN_ZHZD_RES":
+            console.log("收到知乎直答消息:", dataObj);
+            targetAI = this.enabledAIs.find((ai) => ai.name === "知乎直答");
+            break;
 
         }
 
@@ -1377,6 +1430,7 @@
 
           this.userInfoReq.tyChatId = item.tyChatId || "";
           this.userInfoReq.metasoChatId = item.metasoChatId || "";
+          this.userInfoReq.zhzdChatId = item.zhzdChatId || "";
           this.userInfoReq.isNewChat = false;
 
           // 展开相关区域
@@ -1430,6 +1484,7 @@
             maxChatId: this.userInfoReq.maxChatId,
 
             metasoChatId: this.userInfoReq.metasoChatId,
+            zhzdChatId: this.userInfoReq.zhzdChatId,
           });
         } catch(error) {
           console.error("保存历史记录失败:", error);
@@ -1478,6 +1533,7 @@
           tyChatId: "",
           metasoChatId: "",
           maxChatId: "",
+          zhzdChatId: "",
           isNewChat: true,
         };
         // 重置AI列表为初始状态
@@ -1551,21 +1607,21 @@
             progressLogs: [],
             isExpanded: true
           },
-          // {
-          //   name: "秘塔",
-          //   avatar: require("../../../assets/ai/Metaso.png"),
-          //   capabilities: [
-          //     { label: "极速", value: "fast" },
-          //     { label: "极速思考", value: "fast_thinking" },
-          //     { label: "长思考", value: "long_thinking" },
-          //   ],
-          //   selectedCapabilities: "fast",// 单选使用字符串
-          //   enabled: true,
-          //   status: "idle",
-          //   progressLogs: [],
-          //   isExpanded: true,
-          //   isSingleSelect: true,  // 添加单选标记,用于capabilities中状态只能多选一的时候改成true,然后把selectedCapabilities赋值为字符串，不要是数组
-          // },
+          {
+            name: "秘塔",
+            avatar: require("../../../assets/ai/Metaso.png"),
+            capabilities: [
+              { label: "极速", value: "fast" },
+              { label: "极速思考", value: "fast_thinking" },
+              { label: "长思考", value: "long_thinking" },
+            ],
+            selectedCapabilities: "fast",// 单选使用字符串
+            enabled: true,
+            status: "idle",
+            progressLogs: [],
+            isExpanded: true,
+            isSingleSelect: true,  // 添加单选标记,用于capabilities中状态只能多选一的时候改成true,然后把selectedCapabilities赋值为字符串，不要是数组
+          },
 
           {
             name: '腾讯元宝DS',
@@ -1580,6 +1636,23 @@
             progressLogs: [],
             isExpanded: true,
             isSingleSelect: false
+          },
+          {
+            name: "知乎直答",
+            avatar: require("../../../assets/ai/ZHZD.png"),
+            capabilities: [
+              { label: "深度思考", value: "deep_thinking" },
+              { label: "全网搜索", value: "all_web_search" },
+              { label: "知乎搜索", value: "zhihu_search" },
+              { label: "学术搜索", value: "academic_search" },
+              { label: "我的知识库", value: "personal_knowledge" },
+            ],
+            selectedCapabilities: ['deep_thinking', 'all_web_search', 'zhihu_search', 'academic_search', 'personal_knowledge'],
+            enabled: true,
+            status: 'idle',
+            progressLogs: [],
+            isExpanded: true,
+            isSingleSelect: false,
           },
 
         ];
