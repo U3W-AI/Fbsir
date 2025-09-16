@@ -104,8 +104,8 @@ public class WebSocketClientService {
                     String aiName = userInfoRequest.getAiName();
                     // 处理包含"使用F8S"的消息
                     if(message.contains("使用F8S")){
+                        // 使用带去重功能的任务提交，防止重复调用
                         if (message.contains("zhzd-chat")) {
-                            // 使用带去重功能的任务提交，防止重复调用
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "知乎直答", browserController, aigcController);
                             }, "智谱AI", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
