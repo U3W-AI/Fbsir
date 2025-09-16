@@ -6,6 +6,7 @@
     <artifactId>U3W</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>U3W</name>
+
     <description>U3W</description>
     <properties>
         <java.version>17</java.version>
