@@ -906,17 +906,22 @@ public class DeepSeekUtil {
                     Thread.sleep(200);
                     
                     // 使用模拟人工输入方式
-                    simulateHumanTyping(page, inputBox, userPrompt, userId);
-                    
+//                    simulateHumanTyping(page, inputBox, userPrompt, userId);
+                    inputBox.fill(userPrompt);
                     logInfo.sendTaskLog("用户指令已自动输入完成", userId, "DeepSeek");
                     
                     // 等待发送按钮可用并点击
-                    boolean sendSuccess = clickSendButton(page, userId);
-                    
-                    if (!sendSuccess) {
-                        return "获取内容失败：发送消息失败";
+//                    boolean sendSuccess = clickSendButton(page, userId);
+                    int times = 3;
+                    String inputText = inputBox.textContent();
+                    while (inputText != null && !inputText.isEmpty()) {
+                        inputBox.press("Enter");
+                        inputText = inputBox.textContent();
+                        Thread.sleep(1000);
+                        if(times-- < 0) {
+                            throw new RuntimeException("指令输入失败");
+                        }
                     }
-                    
                 } else {
                     return "获取内容失败：未找到输入框";
                 }

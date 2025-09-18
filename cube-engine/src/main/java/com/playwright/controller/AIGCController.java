@@ -1479,6 +1479,12 @@ public class AIGCController {
                     page.navigate("https://zhida.zhihu.com/search/" + sessionId);
                 }
 
+                Locator inputBox = page.locator(".Dropzone.Editable-content.RichText.RichText--editable.RichText--clearBoth.ztext");
+                if (inputBox == null || inputBox.count() <= 0) {
+                    logInfo.sendTaskLog("会话已关闭,现创建新对话", userId, aiName);
+                    page.navigate("https://zhida.zhihu.com");
+                }
+
                 page.waitForLoadState(LoadState.LOAD);
                 Thread.sleep(2000);
 
@@ -1670,7 +1676,7 @@ public class AIGCController {
                 }
             } catch (Exception e) {
                 logInfo.sendTaskLog("内容格式化处理失败", userId, aiName);
-                // 不发送技术错误到前端
+                throw e;
             }
 
             // 🔥 优化：Zhihu分享操作，增加超时保护
@@ -1725,7 +1731,7 @@ public class AIGCController {
             }
             return McpResult.success(formattedContent, shareUrl);
         } catch (Exception e) {
-            logInfo.sendTaskLog("执行知乎直答任务时发生严重错误", userInfoRequest.getUserId(), "知乎直答");
+            logInfo.sendTaskLog("执行知乎直答任务时发生错误", userInfoRequest.getUserId(), "知乎直答");
             throw e;
         }
     }
