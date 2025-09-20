@@ -127,7 +127,10 @@ public class TongYiUtil {
 
             //点击后placeholder变化，不可使用
 //            Locator inputBox = page.locator("textarea[placeholder='遇事不决问通义']");
-            Locator inputBox = page.locator("textarea.ant-input.css-1is4ygt.ant-input-outlined.textarea--FEdqShqI.fadeIn--rfb4PDTu");
+            Locator inputBox = page.locator("//textarea[@placeholder='遇事不决问通义']");
+            if(userInfoRequest.getRoles().contains("ty-qw-sdsk")) {
+                inputBox = page.locator("//textarea[@placeholder='基于Qwen3推理模型，支持自动联网搜索']");
+            }
             inputBox.click();
             page.waitForTimeout(500);
             inputBox.fill(userInfoRequest.getUserPrompt());
@@ -217,7 +220,7 @@ public class TongYiUtil {
                 }
 
                 lastContent = currentContent;
-                page.waitForTimeout(10000);
+                page.waitForTimeout(2000);
             }
             logInfo.sendTaskLog(aiName + "内容已自动提取完成", userId, aiName);
             if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {

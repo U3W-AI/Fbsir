@@ -32,7 +32,7 @@ public class MetasoUtil {
             String currentContent = "";
             String lastContent = "";
             String textContent = "";
-            long timeout = 1200000; //  20分钟超时设置
+            long timeout = 60000 * 3; //  20分钟超时设置
             long startTime = System.currentTimeMillis();
 
             while (true) {
@@ -46,9 +46,6 @@ public class MetasoUtil {
                     return "今日搜索额度已用尽";
                 }
 
-                // 检测 flex-container 是否出现（出现即表示 AI 说完了）
-                boolean isDone = page.locator("[id^='search-content-container-'] > .flex-container").count() > 0;
-
                 // 获取最新回答内容
                 Locator contentLocator = page.locator("div.MuiBox-root .markdown-body").last();
                 // 设置 10 分钟超时时间获取 innerHTML
@@ -57,15 +54,15 @@ public class MetasoUtil {
                 );
                 textContent = contentLocator.textContent();
                 // 内容稳定且已完成回答时退出循环
-                if (isDone && currentContent.equals(lastContent)) {
-                    logInfo.sendTaskLog(aiName + "回答完成，正在提取内容", userId, aiName);
-                    break;
-                }
                 if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
                     webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
                 }
+                if(!currentContent.isEmpty() && currentContent.equals(lastContent)) {
+                    logInfo.sendTaskLog(aiName + "回答完成，正在提取内容", userId, aiName);
+                    break;
+                }
                 lastContent = currentContent;
-                page.waitForTimeout(5000); // 5秒检查一次
+                page.waitForTimeout(2000); // 5秒检查一次
             }
             logInfo.sendTaskLog(aiName + "内容已提取完成", userId, aiName);
             if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
