@@ -156,7 +156,7 @@ public class CubeMcp {
                 promptUrl = matcher.group();
             }
             String content = null;
-            // 获取提示�?
+            // 获取提示词
             AjaxResult wechatLayout = mediaController.getCallWord("wechat_layout");
             Object o = wechatLayout.get("data");
             if(o == null) {

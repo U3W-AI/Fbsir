@@ -52,7 +52,7 @@ public class McpLogAspect {
         
         try {
             MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            // 方法�?
+            // 方法信息
             Method method = signature.getMethod();
             methodName = method.getName();
             log.info("进入MCP方法：{}", methodName);
@@ -66,7 +66,7 @@ public class McpLogAspect {
                 userLogInfo.setDescription(description);
             }
             
-            // 参数处理，增加空指针检�?
+            // 参数处理，增加空指针检查
             Object[] args = joinPoint.getArgs();
             if (args.length > 0) {
                 Object arg = args[0];
@@ -191,7 +191,7 @@ public class McpLogAspect {
     }
     
     /**
-     * 获取异常堆栈信息的前300个字�?
+     * 获取异常堆栈信息的前300个字
      */
     private String getStackTrace(Throwable e) {
         java.io.StringWriter sw = new java.io.StringWriter();
