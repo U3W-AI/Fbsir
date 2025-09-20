@@ -4,6 +4,9 @@ import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.Download;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.BoundingBox;
+import com.microsoft.playwright.options.ScreenshotType;
+import com.microsoft.playwright.options.WaitForSelectorState;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -95,9 +98,52 @@ public class ScreenshotUtil {
         } catch (Exception e) {
             throw e;
         }
-
     }
 
+    public String screenShootAllDivAndUpload(Page page, String imageName, String bodyPath) throws IOException {
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+        try {
+            // 检查页面是否已关闭
+            if (page.isClosed()) {
+                return "";
+            }
+
+            // 等待目标元素加载完成
+            Locator targetElement = page.locator(bodyPath);
+
+            // 获取元素的边界信息
+            BoundingBox boundingBox = targetElement.boundingBox();
+            if (boundingBox == null) {
+                System.err.println("无法获取元素边界信息");
+                return null;
+            }
+
+            // 设置视口大小以匹配元素尺寸（添加适当的缓冲区）
+            page.setViewportSize(
+                    (int) Math.ceil(boundingBox.width),
+                    (int) Math.ceil(boundingBox.height) * 2
+            );
+
+            Path path = Paths.get(imageName);
+            // 截取元素的完整屏幕截图
+            targetElement.screenshot(new Locator.ScreenshotOptions()
+                    .setType(ScreenshotType.PNG)
+                    .setPath(path));
+            String response = uploadFile(uploadUrl, imageName);
+            JSONObject jsonObject = JSONObject.parseObject(response);
+
+            String url = jsonObject.get("url")+"";
+            Files.delete(path);
+            return url;
+        } catch (com.microsoft.playwright.impl.TargetClosedError e) {
+            return "";
+        } catch (com.microsoft.playwright.PlaywrightException e) {
+            return "";
+        } catch (Exception e) {
+            throw e;
+        }
+    }
     public static String uploadFile(String serverUrl, String filePath) throws IOException {
         OkHttpClient client = new OkHttpClient();
         File file = new File(filePath);

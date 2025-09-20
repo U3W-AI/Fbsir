@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,6 +59,8 @@ public class AIGCController {
     // 腾讯元宝相关操作工具类
     @Autowired
     private TencentUtil tencentUtil;
+    @Autowired
+    private ScreenshotUtil screenshotUtil;
 
     // 豆包相关操作工具类
     @Autowired
@@ -435,6 +438,8 @@ public class AIGCController {
                     Thread.sleep(1000);
                 }
                 logInfo.sendTaskLog("已启动深度思考模式", userId, "豆包");
+            } else {
+                deepThoughtButton.click();
             }
             Thread.sleep(1000);
             page.locator("[data-testid='chat_input_input']").click();
@@ -478,8 +483,8 @@ public class AIGCController {
             screenshotExecutor.shutdown();
 
             boolean isRight;
-
-            Locator chatHis = page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/div/main/div/div/div[2]/div/div[1]/div/div/div[2]/div[2]/div/div/div/div/div/div/div[1]/div/div/div[2]/div[1]/div/div");
+            // 检查是否是代码生成
+            Locator chatHis = page.locator("//div[@class='canvas-header-Bc97DC']");
             if (chatHis.count() > 0) {
                 isRight = true;
             } else {
@@ -1077,7 +1082,7 @@ public class AIGCController {
             share.click();
             page.waitForTimeout(1000);
 
-            page.locator("button.ant-btn.css-1is4ygt.ant-btn-primary.ant-btn-color-primary.ant-btn-variant-solid.ty-button.shareButNew--hk8DBL2T").click();
+            page.locator("//button[@class='ant-btn css-12jjqpr ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ty-button shareButNew--hk8DBL2T']").click();
             page.waitForTimeout(1000);
 
             Locator outputLocator = page.locator(".tongyi-markdown").last();
@@ -1327,11 +1332,14 @@ public class AIGCController {
                 if (roles.contains("metaso-jssk")) {
                     // 定位极速思考按钮
                     Thread.sleep(1000);
-                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
-                    Thread.sleep(3000);
+//                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
+                    page.locator("//button[@class='MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium -ml-1! css-yav6cn']//*[name()='svg']").click();
+                    Thread.sleep(1000);
+                    page.locator("//span[contains(text(),'模型')]").click();
+                    Thread.sleep(1000);
 
                     //点击极速思考按钮
-                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("极速·思考 快速思考，智力在线")).click();
+                    page.locator("//div[contains(text(),'快思考')]").click();
 
                     Thread.sleep(1000);
 
@@ -1339,8 +1347,11 @@ public class AIGCController {
                 } else if (roles.contains("metaso-jisu")) {
                     // 定位极速按钮
                     Thread.sleep(1000);
-                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
-                    Thread.sleep(3000);
+//                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
+                    page.locator("//button[@class='MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium -ml-1! css-yav6cn']//*[name()='svg']").click();
+                    Thread.sleep(1000);
+                    page.locator("//span[contains(text(),'模型')]").click();
+                    Thread.sleep(1000);
 
                     //点击极速按钮
                     page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("极速 快如闪电，直给答案")).click();
@@ -1351,11 +1362,14 @@ public class AIGCController {
                 } else if (roles.contains("metaso-csk")) {
                     // 定位长思考按钮
                     Thread.sleep(1000);
-                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
-                    Thread.sleep(3000);
+//                    page.locator("//*[@id=\"searchRoot\"]/div[1]/div[2]/div[5]/form/div[2]/div[1]/div/div").click();
+                    page.locator("//button[@class='MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium -ml-1! css-yav6cn']//*[name()='svg']").click();
+                    Thread.sleep(1000);
+                    page.locator("//span[contains(text(),'模型')]").click();
+                    Thread.sleep(1000);
 
                     //点击长思考按钮
-                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("长思考·R1 DeepSeek-R1-0528模型")).click();
+                    page.locator("//div[contains(@role,'tooltip')]//div[3]//div[1]//div[1]//div[1]").click();
 
                     Thread.sleep(1000);
 
@@ -1403,12 +1417,12 @@ public class AIGCController {
 
             clipboardLockManager.runWithClipboardLock(() -> {
                 try {
-                    // 点击分享链接按钮
-                    page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("分享")).click();
-                    // 等待加载
-                    Thread.sleep(1000);
-                    // 点击复制链接
-                    page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName("复制链接")).click();
+                    boolean visible = page.locator("(//*[name()='svg'])[26]").isVisible();
+                    if(visible) {
+                        page.locator("(//*[name()='svg'])[26]").click();
+                    } else {
+                        page.locator("(//button[@type='button'])[24]").click();
+                    }
                     // 建议适当延迟等待内容更新
                     Thread.sleep(1000);
 
@@ -1419,17 +1433,11 @@ public class AIGCController {
                 }
             });
 
-            Thread.sleep(1000);
+            Thread.sleep(4000);
             String shareUrl = shareUrlRef.get();
-            String sharImgUrl = "";
+            String bodyPath = "div.MuiBox-root .markdown-body";
             // 点击分享按钮
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("分享")).click();
-            Thread.sleep(1000);
-            // 点击生成图片按钮
-            sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
-                page.getByRole(AriaRole.MENUITEM, new Page.GetByRoleOptions().setName("生成图片")).click();
-            });
-
+            String sharImgUrl = screenshotUtil.screenShootAllDivAndUpload(page, UUID.randomUUID().toString() + ".png", bodyPath);
             logInfo.sendTaskLog("执行完成", userId, "秘塔");
             logInfo.sendChatData(page, "/search/([^/?#]+)", userId, "RETURN_METASO_CHATID", 1);
             logInfo.sendResData(copiedText, userId, "秘塔", "RETURN_METASO_RES", shareUrl, sharImgUrl);
