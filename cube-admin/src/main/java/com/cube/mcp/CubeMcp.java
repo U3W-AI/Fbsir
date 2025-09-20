@@ -160,7 +160,7 @@ public class CubeMcp {
             AjaxResult wechatLayout = mediaController.getCallWord("wechat_layout");
             Object o = wechatLayout.get("data");
             if(o == null) {
-                return McpResult.fail("获取提示词失�?请稍后重试", "");
+                return McpResult.fail("获取提示词失败,请稍后重试", "");
             }
             String znpbPrompt = o.toString();
 
