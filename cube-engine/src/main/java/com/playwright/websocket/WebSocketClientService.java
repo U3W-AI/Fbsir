@@ -110,50 +110,50 @@ public class WebSocketClientService {
                                 startAI(userInfoRequest, aiName, "图片生成", browserController, aigcController);
                             }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
-                        // 公众号排�?
+                        // 公众号排版
                         if (message.contains("znpb-ds")) {
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "排版", browserController, aigcController);
                             }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
-                        // 使用带去重功能的任务提交，防止重复调�?
+                        // 使用带去重功能的任务提交，防止重复调用
                         if (message.contains("zhzd-chat")) {
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "知乎直答", browserController, aigcController);
                             }, "智谱AI", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
-                        // 处理包含"metaso"的消�?
+                        // 处理包含"metaso"的消息
                         if(message.contains("mita")){
                             concurrencyManager.submitBrowserTask(() -> {
                                 startAI(userInfoRequest, aiName, "秘塔", browserController, aigcController);
                             }, "Metaso智能体", userInfoRequest.getUserId());
                         }
-                        // 处理包含"yb-hunyuan"�?yb-deepseek"的消�?
+                        // 处理包含"yb-hunyuan"息,yb-deepseek"的消息
                         if(message.contains("yb-hunyuan-pt") || message.contains("yb-deepseek-pt")){
                             concurrencyManager.submitBrowserTask(() -> {
                                 startAI(userInfoRequest, aiName, "元宝", browserController, aigcController);
                             }, "元宝智能体", userInfoRequest.getUserId());
                         }
-                        // 处理包含"zj-db"的消�?
+                        // 处理包含"zj-db"的消息
                         if(message.contains("zj-db")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "豆包", browserController, aigcController);
                             }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
 
-                        // 处理包含"baidu-agent"的消�?
+                        // 处理包含"baidu-agent"的消息
                         if(userInfoRequest.getRoles() != null && userInfoRequest.getRoles().contains("baidu-agent")){
                             concurrencyManager.submitBrowserTask(() -> {
                                 startAI(userInfoRequest, aiName, "百度", browserController, aigcController);
                             }, "百度AI", userInfoRequest.getUserId());
                         }
-                        // 处理包含"deepseek"的消�?
+                        // 处理包含"deepseek"的消息
                         if(message.contains("deepseek,")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "DeepSeek", browserController, aigcController);
                             }, "DeepSeek智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
-                        // 处理包含"ty-qw"的信�?
+                        // 处理包含"ty-qw"的信息
                         if (message.contains("ty-qw")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "通义千问", browserController, aigcController);
