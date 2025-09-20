@@ -55,6 +55,8 @@ public class BrowserController {
 
     @Autowired
     private ZhiHuUtil zhiHuUtil;
+    @Autowired
+    private TongYiUtil tongYiUtil;
 
     @Value("${cube.url}")
     private String url;
@@ -64,41 +66,53 @@ public class BrowserController {
 
     /**
      * 获取秘塔登录二维码
+     *
      * @param userId 用户唯一标识
      * @return 二维码图片URL 或 "false"表示失败
      */
     @Operation(summary = "获取秘塔登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
     @GetMapping("/getMetasoQrCode")
     public String getMetasoQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException, IOException {
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"metaso")) {
+        String key = userId + "-mt";
+        if (loginMap.containsKey(key)) {
+            JSONObject jsonObjectTwo = new JSONObject();
+            jsonObjectTwo.put("status",loginMap.get(key));
+            jsonObjectTwo.put("userId",userId);
+            jsonObjectTwo.put("type","RETURN_METASO_STATUS");
+            webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
+            return loginMap.get(key);
+        }
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "metaso")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://metaso.cn/");
-            page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("登录/注册")).click();
-            Thread.sleep(3000);
-            String url = screenshotUtil.screenshotAndUpload(page,"checkMetasoLogin.png");
-
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("url",url);
-            jsonObject.put("userId",userId);
-            jsonObject.put("type","RETURN_PC_METASO_QRURL");
-            // 发送二维码URL
-            webSocketClientService.sendMessage(jsonObject.toJSONString());
-            //  查找登录后的元素是否存在，不存在则发送登录成功的消息
-            Thread.sleep(3000);
-            Locator login = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
-            Locator phone = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
-            login.waitFor(new Locator.WaitForOptions().setTimeout(60000));
-            Thread.sleep(3000);
-            if (phone.count() > 0){
-                JSONObject jsonObjectTwo = new JSONObject();
-                jsonObjectTwo.put("status",phone.textContent());
-                jsonObjectTwo.put("userId",userId);
-                jsonObjectTwo.put("type","RETURN_METASO_STATUS");
-                webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
+            Thread.sleep(2000);
+            String s = tongYiUtil.checkLogin(page, userId);
+//            未登录
+            if (s == null) {
+//                每20秒刷新一次二维码
+                for (int j = 0; j < 3; j++) {
+                    Locator loginLocator = page.locator("//button[contains(text(),'登录/注册')]");
+                    loginLocator.click();
+                    Thread.sleep(3000);
+                    String url = screenshotUtil.screenshotAndUpload(page, "checkMetasoLogin.png");
+                    JSONObject jsonObject = new JSONObject();
+                    jsonObject.put("url", url);
+                    jsonObject.put("userId", userId);
+                    jsonObject.put("type", "RETURN_PC_METASO_QRURL");
+                    // 发送二维码URL
+                    webSocketClientService.sendMessage(jsonObject.toJSONString());
+                    for (int i = 0; i < 10; i++) {
+//                每两秒检擦一次登陆状态
+                        Thread.sleep(2000);
+                        String userName = tongYiUtil.checkLogin(page, userId);
+                        if (userName != null) {
+                            loginMap.put(key, s);
+                            return userName;
+                        }
+                    }
+                }
             }
-
-            return url;
-
+            return s;
         } catch (Exception e) {
             throw e;
         }
@@ -107,6 +121,7 @@ public class BrowserController {
 
     /**
      * 检查秘塔登录状态
+     *
      * @param userId 用户唯一标识
      * @return 登录状态："false"表示未登录，手机号表示已登录
      */
@@ -118,27 +133,16 @@ public class BrowserController {
             // 如果当前用户正在处理，则返回"处理中"
             return loginMap.get(key);
         }
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"metaso")) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "metaso")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://metaso.cn/");
             Thread.sleep(5000);
-            Locator loginButton = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("登录/注册"));
-
-            if(loginButton.count() > 0 && loginButton.isVisible()){
-                // 存在登录按钮，未登录
+            String s = tongYiUtil.checkLogin(page, userId);
+            if (s == null) {
                 return "false";
-            } else {
-                Thread.sleep(500);
-                Locator phone = page.locator("#left-menu > div > div.LeftMenu_footer__qsJdJ > div > div > div > span");
-                if(phone.count()>0){
-                    String phoneText = phone.textContent();
-                    loginMap.put(key,phoneText);
-                    return phoneText;
-                } else {
-                    return "false";
-                }
             }
-
+            loginMap.put(key, s);
+            return s;
         } catch (Exception e) {
             throw e;
         }
@@ -146,6 +150,7 @@ public class BrowserController {
 
     /**
      * 检查通义AI登录状态
+     *
      * @param userId 用户唯一标识
      * @return 登录状态："false"表示未登录，加密的用户名/手机号表示已登录
      */
@@ -189,6 +194,7 @@ public class BrowserController {
 
     /**
      * 获取通义千问登录二维码
+     *
      * @param userId 用户唯一标识
      * @return 二维码图片URL 或 "false"表示失败
      */
@@ -727,13 +733,14 @@ public class BrowserController {
 
     /**
      * 获取知乎登录二维码
+     *
      * @param userId 用户唯一标识
      * @return 二维码图片URL 或 "false"表示失败
      */
     @GetMapping("/getZhihuQrCode")
     @Operation(summary = "获取知乎登录二维码", description = "返回二维码截图 URL 或 false 表示失败")
     public String getZhihuQrCode(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) {
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"Zhihu")) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "Zhihu")) {
             Page page = browserUtil.getOrCreatePage(context);
             page.navigate("https://www.zhihu.com/signin");
             page.setDefaultTimeout(120000);
@@ -856,18 +863,19 @@ public class BrowserController {
 
     /**
      * 检查知乎登录状态
+     *
      * @param userId 用户唯一标识
      * @return 登录状态："false"表示未登录，用户名表示已登录
      */
     @Operation(summary = "检查知乎登录状态", description = "返回用户名表示已登录，false 表示未登录")
     @GetMapping("/checkZhihuLogin")
-    public String checkZhihuLogin(@Parameter(description = "用户唯一标识")  @RequestParam("userId") String userId) throws InterruptedException {
+    public String checkZhihuLogin(@Parameter(description = "用户唯一标识") @RequestParam("userId") String userId) throws InterruptedException {
         String key = userId + "-zhzd";
         if (loginMap.containsKey(key)) {
             // 如果当前用户正在处理，则返回"处理中"
             return loginMap.get(key);
         }
-        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false,userId,"Zhihu")) {
+        try (BrowserContext context = browserUtil.createPersistentBrowserContext(false, userId, "Zhihu")) {
             Page page = browserUtil.getOrCreatePage(context);
 
             // 先导航到知乎首页而不是登录页面，这样能更好地检测登录状态
