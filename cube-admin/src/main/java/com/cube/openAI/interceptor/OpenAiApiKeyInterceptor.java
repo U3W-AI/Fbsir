@@ -1,12 +1,10 @@
 package com.cube.openAI.interceptor;
 
-import com.cube.openAI.config.ModelRegistry;
-import com.cube.openAI.pojos.UserInfo;
+import com.cube.common.entity.UserSimpleInfo;
 import com.cube.openAI.utils.ApiKeyStore;
 import com.cube.openAI.utils.ThreadUserInfo;
 import com.cube.wechat.selfapp.app.mapper.SysHostWhitelistMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -79,7 +77,7 @@ public class OpenAiApiKeyInterceptor implements HandlerInterceptor {
                     "提供的API密钥无效，请检查后重试");
             return false;
         }
-        UserInfo userInfo = new UserInfo();
+        UserSimpleInfo userInfo = new UserSimpleInfo();
         userInfo.setCropId(cropId);
         userInfo.setUserId(userId);
         ThreadUserInfo.setUserInfo(userInfo);

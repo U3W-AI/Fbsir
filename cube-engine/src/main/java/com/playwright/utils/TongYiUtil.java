@@ -1,5 +1,6 @@
 package com.playwright.utils;
 
+import com.alibaba.fastjson.JSONObject;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.TimeoutError;
@@ -34,6 +35,21 @@ public class TongYiUtil {
     
     @Value("${cube.url}")
     private String url;
+
+//    检查登录
+    public String  checkLogin(Page page, String userId) {
+        Locator loginLocator = page.locator("//button[contains(text(),'登录/注册')]");
+        if(!loginLocator.isVisible()) {
+            String userName = page.locator("//span[@class='MuiTypography-root MuiTypography-body1 css-15xijen']").textContent();
+            JSONObject jsonObjectTwo = new JSONObject();
+            jsonObjectTwo.put("status",userName);
+            jsonObjectTwo.put("userId",userId);
+            jsonObjectTwo.put("type","RETURN_METASO_STATUS");
+            webSocketClientService.sendMessage(jsonObjectTwo.toJSONString());
+            return userName;
+        }
+        return null;
+    }
 
     /**
      * 处理通义千问的特殊模式切换（深度思考/联网搜索）

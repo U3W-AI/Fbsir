@@ -1,4 +1,4 @@
-package com.cube.openAI.pojos;
+package com.cube.common.entity;
 
 import lombok.Data;
 
@@ -8,7 +8,8 @@ import lombok.Data;
  * dateNow   2025/9/12 10:52
  */
 @Data
-public class UserInfo {
+public class UserSimpleInfo {
     private String userId;
     private String cropId;
+    private String unionId;
 }

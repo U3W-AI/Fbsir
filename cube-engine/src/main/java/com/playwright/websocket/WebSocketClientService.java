@@ -104,118 +104,62 @@ public class WebSocketClientService {
                     String aiName = userInfoRequest.getAiName();
                     // 处理包含"使用F8S"的消息
                     if(message.contains("使用F8S")){
-                        // 使用带去重功能的任务提交，防止重复调用
+                        //豆包生成图片
+                        if(message.contains("db-img")) {
+                            concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
+                                startAI(userInfoRequest, aiName, "图片生成", browserController, aigcController);
+                            }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
+                        }
+                        // 公众号排�?
+                        if (message.contains("znpb-ds")) {
+                            concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
+                                startAI(userInfoRequest, aiName, "排版", browserController, aigcController);
+                            }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
+                        }
+                        // 使用带去重功能的任务提交，防止重复调�?
                         if (message.contains("zhzd-chat")) {
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
                                 startAI(userInfoRequest, aiName, "知乎直答", browserController, aigcController);
                             }, "智谱AI", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
-                        // 处理包含"metaso"的消息
+                        // 处理包含"metaso"的消�?
                         if(message.contains("mita")){
                             concurrencyManager.submitBrowserTask(() -> {
                                 startAI(userInfoRequest, aiName, "秘塔", browserController, aigcController);
                             }, "Metaso智能体", userInfoRequest.getUserId());
                         }
-                        // 处理包含"yb-hunyuan"或"yb-deepseek"的消息
+                        // 处理包含"yb-hunyuan"�?yb-deepseek"的消�?
                         if(message.contains("yb-hunyuan-pt") || message.contains("yb-deepseek-pt")){
                             concurrencyManager.submitBrowserTask(() -> {
-                                try {
-//                                    新增检查登录状态
-                                    String status = browserController.checkYBLogin(userInfoRequest.getUserId());
-                                    if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录元宝",null), aiName);
-                                        return;
-                                    }
-                                    McpResult mcpResult = aigcController.startYB(userInfoRequest);
-                                    if(aiName.contains("stream")) {
-                                        return;
-                                    }
-                                    sendMessage(userInfoRequest,mcpResult, aiName);
-                                } catch (Exception e) {
-                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
-                                }
+                                startAI(userInfoRequest, aiName, "元宝", browserController, aigcController);
                             }, "元宝智能体", userInfoRequest.getUserId());
                         }
-                        // 处理包含"zj-db"的消息
+                        // 处理包含"zj-db"的消�?
                         if(message.contains("zj-db")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
-                                try {
-                                    String status = browserController.checkDBLogin(userInfoRequest.getUserId());
-                                    if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录豆包",null), aiName);
-                                        return;
-                                    }
-                                    McpResult mcpResult = aigcController.startDB(userInfoRequest);
-                                    if(aiName.contains("stream")) {
-                                        return;
-                                    }
-                                    sendMessage(userInfoRequest,mcpResult,aiName);
-                                } catch (Exception e) {
-                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
-                                }
+                                startAI(userInfoRequest, aiName, "豆包", browserController, aigcController);
                             }, "豆包智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
 
-                        // 处理包含"baidu-agent"的消息
+                        // 处理包含"baidu-agent"的消�?
                         if(userInfoRequest.getRoles() != null && userInfoRequest.getRoles().contains("baidu-agent")){
                             concurrencyManager.submitBrowserTask(() -> {
-                                try {
-                                    String status = browserController.checkBaiduLogin(userInfoRequest.getUserId());
-                                    if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录百度AI",null), aiName);
-                                        return;
-                                    }
-                                    McpResult mcpResult = aigcController.startBaidu(userInfoRequest);
-                                    if(aiName.contains("stream")) {
-                                        return;
-                                    }
-                                    sendMessage(userInfoRequest,mcpResult,aiName);
-                                } catch (Exception e) {
-                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
-                                }
+                                startAI(userInfoRequest, aiName, "百度", browserController, aigcController);
                             }, "百度AI", userInfoRequest.getUserId());
                         }
-                        // 处理包含"deepseek"的消息
+                        // 处理包含"deepseek"的消�?
                         if(message.contains("deepseek,")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
-                                try {
-                                    String status = browserController.checkDSLogin(userInfoRequest.getUserId());
-                                    if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录deepseek",null), aiName);
-                                        return;
-                                    }
-                                    McpResult mcpResult = aigcController.startDS(userInfoRequest);
-                                    if(aiName.contains("stream")) {
-                                        return;
-                                    }
-                                    sendMessage(userInfoRequest,mcpResult,aiName);
-                                } catch (Exception e) {
-                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
-                                }
+                                startAI(userInfoRequest, aiName, "DeepSeek", browserController, aigcController);
                             }, "DeepSeek智能体", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
-                        // 处理包含"ty-qw"的信息
+                        // 处理包含"ty-qw"的信�?
                         if (message.contains("ty-qw")){
                             concurrencyManager.submitBrowserTaskWithDeduplication(() -> {
-                                try {
-                                    String status = browserController.checkTongYiLogin(userInfoRequest.getUserId());
-                                    if(status.equals("未登录") || status.equals("false")) {
-                                        sendMessage(userInfoRequest,McpResult.fail("请先前往后台登录通义千问",null), aiName);
-                                        return;
-                                    }
-                                    McpResult mcpResult = aigcController.startTYQianwen(userInfoRequest);
-                                    if(aiName.contains("stream")) {
-                                        return;
-                                    }
-                                    sendMessage(userInfoRequest,mcpResult,aiName);
-                                } catch (Exception e) {
-                                    sendMessage(userInfoRequest,McpResult.fail("生成失败,请稍后再试",null), aiName);
-
-                                }
+                                startAI(userInfoRequest, aiName, "通义千问", browserController, aigcController);
                             }, "通义千问", userInfoRequest.getUserId(), 5, userInfoRequest.getUserPrompt());
                         }
                     }
-
                     // 处理获取知乎二维码的消息
                     if(message.contains("PLAY_GET_ZHIHU_QRCODE")){
                         concurrencyManager.submitBrowserTask(() -> {
@@ -358,30 +302,6 @@ public class WebSocketClientService {
                         }, "通义千问登录检查", userInfoRequest.getUserId());
                     }
 
-                    // 处理获取秘塔二维码的消息
-                    if(message.contains("PLAY_GET_METASO_QRCODE")){
-                        concurrencyManager.submitBrowserTask(() -> {
-                            try {
-                                browserController.getMetasoQrCode(userInfoRequest.getUserId());
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }, "获取Metaso二维码", userInfoRequest.getUserId());
-                    }
-
-                    //  处理检查秘塔登录状态的信息
-                    if (message.contains("CHECK_METASO_LOGIN")) {
-                        concurrencyManager.submitBrowserTask(() -> {
-                            try {
-                                String checkLogin = browserController.checkMetasoLogin(userInfoRequest.getUserId());
-                                userInfoRequest.setStatus(checkLogin);
-                                userInfoRequest.setType("RETURN_METASO_STATUS");
-                                sendMessage(JSON.toJSONString(userInfoRequest));
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }, "Metaso登录检查", userInfoRequest.getUserId());
-                    }
 
                     // 处理获取百度AI二维码的消息
                     if(message.contains("PLAY_GET_BAIDU_QRCODE")){
@@ -602,6 +522,22 @@ public class WebSocketClientService {
                 case "秘塔" -> {
                     status = browserController.checkMetasoLogin(userInfoRequest.getUserId());
                 }
+                case "元宝", "排版" -> {
+                    status = browserController.checkYBLogin(userInfoRequest.getUserId());
+                }
+                case "豆包", "图片生成" -> {
+                    status = browserController.checkDBLogin(userInfoRequest.getUserId());
+                }
+                case "百度" -> {
+                    status = browserController.checkBaiduLogin(userInfoRequest.getUserId());
+                }
+                case "DeepSeek" -> {
+                    status = browserController.checkDSLogin(userInfoRequest.getUserId());
+                }
+                case "通义千问" -> {
+                    status = browserController.checkTongYiLogin(userInfoRequest.getUserId());
+                }
+//                TODO 后续添加其他AI
             }
 
             if (status == null || status.equals("未登录") || status.equals("false")) {
@@ -618,6 +554,28 @@ public class WebSocketClientService {
                 case "秘塔" -> {
                     mcpResult = aigcController.startMetaso(userInfoRequest);
                 }
+                case "元宝" -> {
+                    mcpResult = aigcController.startYB(userInfoRequest);
+                }
+                case "豆包" -> {
+                    mcpResult = aigcController.startDB(userInfoRequest);
+                }
+                case "百度" -> {
+                    mcpResult = aigcController.startBaidu(userInfoRequest);
+                }
+                case "DeepSeek" -> {
+                    mcpResult = aigcController.startDS(userInfoRequest);
+                }
+                case "通义千问" -> {
+                    mcpResult = aigcController.startTYQianwen(userInfoRequest);
+                }
+                case "排版" ->  {
+                    mcpResult = aigcController.startYBOffice(userInfoRequest);
+                }
+                case "图片生成" -> {
+                    mcpResult = aigcController.startDBImg(userInfoRequest);
+                }
+//                TODO 后续添加其他AI
             }
 
 

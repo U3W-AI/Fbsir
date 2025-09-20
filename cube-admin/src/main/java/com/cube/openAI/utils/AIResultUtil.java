@@ -2,11 +2,11 @@ package com.cube.openAI.utils;
 
 import cn.hutool.core.lang.UUID;
 import com.cube.common.core.redis.RedisCache;
+import com.cube.common.entity.UserInfoRequest;
+import com.cube.common.entity.UserSimpleInfo;
 import com.cube.openAI.constants.OpenAIExceptionConstants;
 import com.cube.openAI.pojos.ChatCompletionStreamResponse;
 import com.cube.openAI.pojos.Message;
-import com.cube.openAI.pojos.UserInfo;
-import com.cube.openAI.pojos.UserInfoRequest;
 import com.cube.wechat.selfapp.app.config.MyWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +32,7 @@ public class AIResultUtil {
         try {
             MyWebSocketHandler myWebSocketHandler = SpringContextUtils.getBean(MyWebSocketHandler.class);
             RedisCache redisCache = SpringContextUtils.getBean(RedisCache.class);
-            UserInfo userInfo = ThreadUserInfo.getUserInfo();
+            UserSimpleInfo userInfo = ThreadUserInfo.getUserInfo();
             if(userInfo == null) {
                 throw new RuntimeException(OpenAIExceptionConstants.USER_NOT_FOUND);
             }
