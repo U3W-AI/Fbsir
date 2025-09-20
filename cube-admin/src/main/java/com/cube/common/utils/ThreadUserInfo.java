@@ -1,4 +1,4 @@
-package com.cube.openAI.utils;
+package com.cube.common.utils;
 
 import com.cube.common.entity.UserSimpleInfo;
 
@@ -13,8 +13,8 @@ public class ThreadUserInfo {
     public static UserSimpleInfo getUserInfo() {
         return userInfo.get();
     }
-    public static void setUserInfo(UserSimpleInfo userInfo) {
-        ThreadUserInfo.userInfo.set(userInfo);
+    public static void setUserInfo(UserSimpleInfo userSimpleInfo) {
+        ThreadUserInfo.userInfo.set(userSimpleInfo);
     }
     public static void removeUserInfo() {
         userInfo.remove();

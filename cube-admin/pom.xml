@@ -17,6 +17,11 @@
     </description>
 
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>1.0.1</version>
+        </dependency>
         <!-- JSON处理（默认已包含，确保版本兼容） -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

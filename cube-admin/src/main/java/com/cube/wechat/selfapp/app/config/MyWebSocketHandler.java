@@ -7,8 +7,8 @@ package com.cube.wechat.selfapp.app.config;
  */
 import com.alibaba.fastjson.JSONObject;
 import com.cube.common.core.redis.RedisCache;
+import com.cube.common.entity.UserInfoRequest;
 import com.cube.common.utils.StringUtils;
-import com.cube.openAI.pojos.UserInfoRequest;
 import com.cube.openAI.utils.SpringContextUtils;
 import com.cube.wechat.selfapp.app.mapper.UserInfoMapper;
 import lombok.extern.slf4j.Slf4j;
