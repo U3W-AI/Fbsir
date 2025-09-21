@@ -495,6 +495,7 @@ public class TencentUtil {
 
                     // 等待分享按钮出现并点击
                     page.waitForSelector("span.icon-yb-ic_share_2504", new Page.WaitForSelectorOptions().setTimeout(10000));
+                    Thread.sleep(2000);
                     page.locator("span.icon-yb-ic_share_2504").last().click();
                     Thread.sleep(2000);
 

@@ -485,8 +485,11 @@ public class AIGCController {
             boolean isRight;
             // 检查是否是代码生成
             Locator chatHis = page.locator("//div[@class='canvas-header-Bc97DC']");
+            String sharImgUrl = null;
+            String codeBody = "//div[@role='textbox']";
             if (chatHis.count() > 0) {
                 isRight = true;
+                sharImgUrl = screenshotUtil.screenShootAllDivAndUpload(page, UUID.randomUUID().toString() + ".png", codeBody);
             } else {
                 isRight = false;
             }
@@ -495,21 +498,23 @@ public class AIGCController {
 
             clipboardLockManager.runWithClipboardLock(() -> {
                 try {
-                    if (isRight && page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[4]").count() > 0) {
-                        page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[4]").click();
+                    if (isRight) {
+                        page.locator("button[data-testid='message_action_share']").last().click();
                         Thread.sleep(1000);
-                        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("公开分享")).click();
-                        Thread.sleep(500);
+                        page.locator("//*[name()='path' and contains(@d,'M4.5005 4.')]").click();
+                        Thread.sleep(1000);
+                        page.locator("button[data-testid='thread_share_copy_btn']").first().click();
+
                     } else {
                         page.locator("button[data-testid='message_action_share']").last().click();
-                        Thread.sleep(2000);
+                        Thread.sleep(1000);
                         page.locator("button[data-testid='thread_share_copy_btn']").first().click();
                     }
-
-                    // 建议适当延迟等待内容更新
                     Thread.sleep(2000);
                     String shareUrl = (String) page.evaluate("navigator.clipboard.readText()");
                     shareUrlRef.set(shareUrl);
+
+                    // 建议适当延迟等待内容更新
                 } catch (Exception e) {
                     UserLogUtil.sendExceptionLog(userId, "豆包复制", "startDB", e, url + "/saveLogInfo");
                 }
@@ -517,13 +522,7 @@ public class AIGCController {
 
             Thread.sleep(1000);
             String shareUrl = shareUrlRef.get();
-            String sharImgUrl = "";
-            if (isRight && page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[3]").count() > 0) {
-                page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[1]/div[3]/div/div/div/div[3]").click();
-                sharImgUrl = ScreenshotUtil.downloadAndUploadFile(page, uploadUrl, () -> {
-                    page.getByTestId("popover_select_option_item").nth(1).click();
-                });
-            } else {
+            if(sharImgUrl == null) {
                 page.locator("button[data-testid='message_action_share']").last().click();
                 Thread.sleep(2000);
                 Locator shareLocator = page.locator("(//span[contains(@class,'semi-button-content')][contains(text(),'分享图片')])[1]");

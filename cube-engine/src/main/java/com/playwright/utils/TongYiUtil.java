@@ -1,6 +1,7 @@
 package com.playwright.utils;
 
 import com.alibaba.fastjson.JSONObject;
+import com.microsoft.playwright.Keyboard;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.TimeoutError;
@@ -128,15 +129,19 @@ public class TongYiUtil {
             //点击后placeholder变化，不可使用
 //            Locator inputBox = page.locator("textarea[placeholder='遇事不决问通义']");
             Locator inputBox = page.locator("//textarea[@placeholder='遇事不决问通义']");
+            if (!inputBox.isVisible()) {
+                inputBox = page.locator("//textarea[@placeholder='Enter 发送，Ctrl+Enter 换行，点击放大按钮可全屏输入']");
+            }
             if(userInfoRequest.getRoles().contains("ty-qw-sdsk")) {
                 inputBox = page.locator("//textarea[@placeholder='基于Qwen3推理模型，支持自动联网搜索']");
             }
             inputBox.click();
             page.waitForTimeout(500);
-            inputBox.fill(userInfoRequest.getUserPrompt());
-            logInfo.sendTaskLog("用户指令已自动输入完成", userId, aiName);
+//            模拟键盘输入
+            page.keyboard().type(userInfoRequest.getUserPrompt(), new Keyboard.TypeOptions()
+                    .setDelay(100)); // 每个字符之间延迟100ms，更接近真人输入            logInfo.sendTaskLog("用户指令已自动输入完成", userId, aiName);
             page.waitForTimeout(500);
-            inputBox.press("Enter");
+            page.locator("//div[@class='operateBtn--qMhYIdIu']//span[@role='img']//*[name()='svg']").click();
             logInfo.sendTaskLog("指令已自动发送成功", userId, aiName);
             logInfo.sendTaskLog("开启自动监听任务，持续监听" + aiName + "回答中", userId, aiName);
 
