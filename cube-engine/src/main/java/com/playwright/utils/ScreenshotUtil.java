@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.options.BoundingBox;
 import com.microsoft.playwright.options.ScreenshotType;
+import com.microsoft.playwright.options.ViewportSize;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -119,6 +120,7 @@ public class ScreenshotUtil {
                 return null;
             }
 
+            ViewportSize viewportSize = page.viewportSize();
             // 设置视口大小以匹配元素尺寸（添加适当的缓冲区）
             page.setViewportSize(
                     (int) Math.ceil(boundingBox.width),
@@ -135,6 +137,10 @@ public class ScreenshotUtil {
 
             String url = jsonObject.get("url")+"";
             Files.delete(path);
+            page.setViewportSize(
+                    viewportSize.width,
+                    viewportSize.height
+            );
             return url;
         } catch (com.microsoft.playwright.impl.TargetClosedError e) {
             return "";

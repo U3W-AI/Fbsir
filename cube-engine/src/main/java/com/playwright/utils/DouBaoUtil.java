@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * 豆包AI工具类
  * 提供与豆包AI交互的自动化操作功能
+ *
  * @author 优立方
  * @version JDK 17
  * @date 2025年05月27日 10:33
@@ -32,7 +33,7 @@ public class DouBaoUtil {
 
     @Autowired
     private WebSocketClientService webSocketClientService;
-    
+
     @Value("${cube.url}")
     private String url;
 
@@ -63,28 +64,24 @@ public class DouBaoUtil {
                 lastContent = currentContent;
                 page.waitForTimeout(5000); // 每5秒检查一次
             }
-            
+
             Locator locator = page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/div[1]/div[1]/div/div/div[2]/div/div[2]/div/div/div");
             locator.waitFor(new Locator.WaitForOptions().setTimeout(20000));
             locator.click();
-            
+
             // 等待复制按钮出现
-            page.waitForSelector("[data-testid='message_action_copy']",
-                    new Page.WaitForSelectorOptions()
-                            .setState(WaitForSelectorState.VISIBLE)
-                            .setTimeout(600000));  // 600秒超时
+            page.waitForSelector("[data-testid='message_action_copy']", new Page.WaitForSelectorOptions().setState(WaitForSelectorState.VISIBLE).setTimeout(600000));  // 600秒超时
             logInfo.sendTaskLog("评分完成，正在自动获取评分内容", userId, "智能评分");
             Thread.sleep(2000);  // 额外等待确保按钮可点击
 
             // 点击复制按钮
-            page.locator("[data-testid='message_action_copy']")
-                    .last()  // 获取最后一个复制按钮
+            page.locator("[data-testid='message_action_copy']").last()  // 获取最后一个复制按钮
                     .click();
             logInfo.sendTaskLog("评分结果已自动提取完成", userId, "豆包");
 
             // 确保点击操作完成
             Thread.sleep(1000);
-            
+
             // 记录成功日志
             UserLogUtil.sendAISuccessLog(userId, "豆包", "评分任务", "成功完成评分并提取结果", startTime, url + "/saveLogInfo");
 
@@ -99,7 +96,7 @@ public class DouBaoUtil {
         }
     }
 
-    public String waitAndClickDBCopyButton(Page page,String userId,String roles) throws InterruptedException {
+    public String waitAndClickDBCopyButton(Page page, String userId, String roles) throws InterruptedException {
         try {
             // 等待页面内容稳定
             String currentContent = "";
@@ -132,19 +129,15 @@ public class DouBaoUtil {
             }
 
 
-            page.waitForSelector("[data-testid='message_action_copy']",
-                    new Page.WaitForSelectorOptions()
-                            .setState(WaitForSelectorState.VISIBLE)
-                            .setTimeout(600000));  // 600秒超时
-            logInfo.sendTaskLog( "豆包回答完成，正在自动提取内容",userId,"豆包");
+            page.waitForSelector("[data-testid='message_action_copy']", new Page.WaitForSelectorOptions().setState(WaitForSelectorState.VISIBLE).setTimeout(600000));  // 600秒超时
+            logInfo.sendTaskLog("豆包回答完成，正在自动提取内容", userId, "豆包");
             // 点击复制按钮
-            page.locator("[data-testid='message_action_copy']")
-                    .last()  // 获取最后一个复制按钮
+            page.locator("[data-testid='message_action_copy']").last()  // 获取最后一个复制按钮
                     .click();
             Thread.sleep(2000);
             copiedText = (String) page.evaluate("navigator.clipboard.readText()");
             logInfo.sendTaskLog("豆包内容已自动提取完成", userId, "豆包");
-            
+
             // 记录成功日志
             UserLogUtil.sendAISuccessLog(userId, "豆包", "内容复制", "成功提取豆包回答内容", System.currentTimeMillis(), url + "/saveLogInfo");
             return copiedText;
@@ -161,23 +154,34 @@ public class DouBaoUtil {
 
     /**
      * html片段获取（核心监控方法）
+     *
      * @param page Playwright页面实例
      */
-    public String waitDBHtmlDom(Page page,String userId,String aiName, UserInfoRequest userInfoRequest) throws InterruptedException {
+    public String waitDBHtmlDom(Page page, String userId, String aiName, UserInfoRequest userInfoRequest) throws InterruptedException {
         try {
             // 等待聊天框的内容稳定
             String currentContent = "";
             String lastContent = "";
+            String rightCurrentContent = "";
+            String rightLastContent = "";
             String textContent = "";
-            boolean isRight =false;
+            String rightTextContent = "";
+            boolean isRight = false;
             // 设置最大等待时间（单位：毫秒），比如 10 分钟
             long timeout = 600000; // 10 分钟
             long startTime = System.currentTimeMillis();  // 获取当前时间戳
 
             // 进入循环，直到内容不再变化或者超时
             while (true) {
+                // 检查是否是代码生成
+                Locator chatHis = page.locator("//div[@class='canvas-header-Bc97DC']");
+                if (chatHis.count() > 0) {
+                    isRight = true;
+                } else {
+                    isRight = false;
+                }
                 Locator changeTypeLocator = page.locator("text=改用对话直接回答");
-                if(changeTypeLocator.isVisible()) {
+                if (changeTypeLocator.isVisible()) {
                     changeTypeLocator.click();
                 }
                 // 获取当前时间戳
@@ -188,34 +192,44 @@ public class DouBaoUtil {
                     break;
                 }
                 // 获取最新内容
-                if(currentContent.contains("改用对话直接回答") && !isRight){
+                if (currentContent.contains("改用对话直接回答") && !isRight) {
                     page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/div/main/div/div/div[2]/div/div[1]/div/div/div[2]/div[2]/div/div/div/div/div/div/div[1]/div/div/div[2]/div[1]/div/div").click();
                     isRight = true;
                 }
 
-                if(isRight){
-                    Locator outputLocator = page.locator("//*[@id=\"root\"]/div[1]/div/div[3]/aside/div[2]/div/div[1]/div/div[2]/div/div/div/div/div/div/div/div/div/div/div/div[1]").last();
-                    currentContent = outputLocator.innerHTML();
-                    textContent = outputLocator.textContent();
-                }else{
-                    Locator outputLocator = page.locator(".flow-markdown-body").last();
-                    currentContent = outputLocator.innerHTML();
-                    textContent = outputLocator.textContent();
+                if (isRight) {
+                    Locator outputLocator = page.locator("//div[@role='textbox']");
+                    rightCurrentContent = outputLocator.innerHTML();
+                    rightTextContent = outputLocator.textContent();
                 }
-
+                Locator outputLocator = page.locator(".flow-markdown-body").last();
+                currentContent = outputLocator.innerHTML();
+                textContent = outputLocator.textContent();
                 // 如果当前内容和上次内容相同，认为 AI 已经完成回答，退出循环
-                if (currentContent.equals(lastContent)) {
-                    logInfo.sendTaskLog( aiName+"回答完成，正在自动提取内容",userId,aiName);
-                    break;
+                if (!currentContent.isEmpty() && currentContent.equals(lastContent)) {
+                    if(isRight) {
+                        if(!rightCurrentContent.isEmpty() && rightCurrentContent.equals(rightLastContent)) {
+                            logInfo.sendTaskLog(aiName + "回答完成，正在自动提取内容", userId, aiName);
+                            break;
+                        }
+                    } else {
+                        logInfo.sendTaskLog(aiName + "回答完成，正在自动提取内容", userId, aiName);
+                        break;
+                    }
                 }
-                if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
-                    webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), "db-stream");
+                if (userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
+                    if(isRight) {
+                        webSocketClientService.sendMessage(userInfoRequest, McpResult.success(rightTextContent, ""), "db-stream");
+                    } else {
+                        webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), "db-stream");
+                    }
                 }
                 // 更新上次内容为当前内容
                 lastContent = currentContent;
-                page.waitForTimeout(2000);  // 等待10秒再次检查
+                rightLastContent = rightCurrentContent;
+                page.waitForTimeout(5000);  // 等待10秒再次检查
             }
-            if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
+            if (userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
 //                延迟3秒结束，确保剩余内容全部输出
                 Thread.sleep(3000);
                 webSocketClientService.sendMessage(userInfoRequest, McpResult.success("END", ""), "db-stream");
@@ -223,10 +237,12 @@ public class DouBaoUtil {
             logInfo.sendTaskLog(aiName + "内容已自动提取完成", userId, aiName);
 
             String regex = "<span>\\s*<span[^>]*?>\\d+</span>\\s*</span>";
-
+            if(isRight) {
+                currentContent = rightCurrentContent;
+            }
             currentContent = currentContent.replaceAll(regex, "");
             currentContent = currentContent.replaceAll("撰写任何内容...", "");
-            
+
             // 记录成功日志
             UserLogUtil.sendAISuccessLog(userId, aiName, "HTML内容提取", "成功提取并处理HTML内容", System.currentTimeMillis(), url + "/saveLogInfo");
             return currentContent;
@@ -243,17 +259,17 @@ public class DouBaoUtil {
     }
 
 
-
     /**
      * 排版代码获取（核心监控方法）
+     *
      * @param page Playwright页面实例
      */
-    public String waitPBCopy(Page page,String userId,String aiName)  {
+    public String waitPBCopy(Page page, String userId, String aiName) {
         try {
             // 等待聊天框的内容稳定
             String currentContent = "";
             String lastContent = "";
-            boolean isRight =false;
+            boolean isRight = false;
             // 设置最大等待时间（单位：毫秒），比如 10 分钟
             long timeout = 600000; // 10 分钟
             long startTime = System.currentTimeMillis();  // 获取当前时间戳
@@ -272,18 +288,16 @@ public class DouBaoUtil {
                 currentContent = outputLocator.innerHTML();
                 // 如果当前内容和上次内容相同，认为 AI 已经完成回答，退出循环
                 if (currentContent.equals(lastContent)) {
-                    logInfo.sendTaskLog( aiName+"回答完成，正在自动提取内容",userId,aiName);
+                    logInfo.sendTaskLog(aiName + "回答完成，正在自动提取内容", userId, aiName);
 
                     clipboardLockManager.runWithClipboardLock(() -> {
                         try {
                             // 获取所有复制按钮的 SVG 元素（通过 xlink:href 属性定位）
-                            if(page.locator("[data-testid='code-block-copy']").count()>0){
-                                page.locator("[data-testid='code-block-copy']")
-                                        .last()  // 获取最后一个复制按钮
+                            if (page.locator("[data-testid='code-block-copy']").count() > 0) {
+                                page.locator("[data-testid='code-block-copy']").last()  // 获取最后一个复制按钮
                                         .click();
-                            }else{
-                                page.locator("[data-testid='message_action_copy']")
-                                        .last()  // 获取最后一个复制按钮
+                            } else {
+                                page.locator("[data-testid='message_action_copy']").last()  // 获取最后一个复制按钮
                                         .click();
                             }
 
@@ -304,7 +318,7 @@ public class DouBaoUtil {
             logInfo.sendTaskLog(aiName + "内容已自动提取完成", userId, aiName);
 
             currentContent = textRef.get();
-            
+
             // 记录成功日志
             UserLogUtil.sendAISuccessLog(userId, aiName, "排版代码提取", "成功提取排版代码内容", System.currentTimeMillis(), url + "/saveLogInfo");
             return currentContent;
