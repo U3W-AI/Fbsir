@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
@@ -116,7 +117,7 @@ public class TongYiUtil {
      * @param userInfoRequest 包含所有请求信息的对象
      * @return 包含处理结果的Map
      */
-    public Map<String, String> processQianwenRequest(Page page, UserInfoRequest userInfoRequest) {
+    public Map<String, String> processQianwenRequest(Page page, UserInfoRequest userInfoRequest) throws InterruptedException {
         String userId = userInfoRequest.getUserId();
         String aiName = "通义千问";
         Map<String, String> resultMap = new HashMap<>();
@@ -186,7 +187,7 @@ public class TongYiUtil {
      * @param userId 用户ID
      * @param aiName 智能体名称
      */
-    public String waitTongYiHtmlDom(Page page, String userId, String aiName, UserInfoRequest userInfoRequest) {
+    public String waitTongYiHtmlDom(Page page, String userId, String aiName, UserInfoRequest userInfoRequest) throws InterruptedException {
         long startTime = System.currentTimeMillis();
         try {
             String currentContent = "";
@@ -196,6 +197,8 @@ public class TongYiUtil {
             long timeout = 600000;
             long operationStartTime = System.currentTimeMillis();
 
+            Thread.sleep(3000);
+            boolean isEnd = false;
             while (true) {
                 long elapsedTime = System.currentTimeMillis() - operationStartTime;
 
@@ -208,6 +211,9 @@ public class TongYiUtil {
 
                 Locator outputLocator = page.locator(".tongyi-markdown").last();
 
+                if (!page.locator("//div[@class='operateBtn--qMhYIdIu stop--P_jcrPFo']").isVisible()) {
+                    isEnd = true;
+                }
                 if (outputLocator.count() == 0) {
                     page.waitForTimeout(2000);
                     continue;
@@ -219,7 +225,7 @@ public class TongYiUtil {
                 if(userInfoRequest.getAiName() != null && userInfoRequest.getAiName().contains("stream")) {
                     webSocketClientService.sendMessage(userInfoRequest, McpResult.success(textContent, ""), userInfoRequest.getAiName());
                 }
-                if (!currentContent.isEmpty() && currentContent.equals(lastContent)) {
+                if (isEnd && !currentContent.isEmpty() && currentContent.equals(lastContent)) {
                     logInfo.sendTaskLog(aiName + "回答完成，正在自动提取内容", userId, aiName);
                     break;
                 }
