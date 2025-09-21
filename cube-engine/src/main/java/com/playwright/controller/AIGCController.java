@@ -1434,7 +1434,7 @@ public class AIGCController {
 
             Thread.sleep(4000);
             String shareUrl = shareUrlRef.get();
-            String bodyPath = "div.MuiBox-root .markdown-body";
+            String bodyPath = "(//div[@class='flex flex-col min-h-[calc(100vh-192px)]'])[1]";
             // 点击分享按钮
             String sharImgUrl = screenshotUtil.screenShootAllDivAndUpload(page, UUID.randomUUID().toString() + ".png", bodyPath);
             logInfo.sendTaskLog("执行完成", userId, "秘塔");
