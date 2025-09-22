@@ -1,20 +1,20 @@
-<p align="center"><img alt="Static Badge" src="https://img.shields.io/badge/MySQL-5.7-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/JDK-17-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/Spring%20Boot-2.5.15-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/Redis-6.0%2B-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/License-AGPL3.0-blue"></p>
+<p align="center"><img alt="Static Badge" src="https://img.shields.io/badge/MySQL-5.7-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/JDK-17-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/Spring%20Boot-3.2.5-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/Redis-6.0%2B-blue"> <img alt="Static Badge" src="https://img.shields.io/badge/License-AGPL3.0-blue"></p>
 
 # 福帮手FBSir：智能原生时代的微信私域运营助手
 ![输入图片说明](docs-img/%E5%AF%B9%E8%AF%9D%E9%9A%90%E5%BD%A2%E5%86%A0%E5%86%9B.jpeg)
 
-版本：0.18A2
+版本：0.19A
 
-文档更新日期：2025年9月20日
+文档更新日期：2025年9月22日
 
 福帮手FBSir，福润百业，智生万象。福帮手是基于U3W优立方AI主机的解决方案，以MCP打通AI主机与腾讯元器工作流智能体的联系，实现AI赋能微信运营，助力团队高效利用公众号、社群、企业微信等流量设施，提升企业获客及用户价值转化能力。
 
-
 ## 近期重要更新
-
+2025年9月22日：增强部分智能体的稳定性
 
 2025年9月16日：秘塔及知乎直答 MCP 服务上架，目前支持元宝、豆包、百度 AI、DeepSeek、通义、秘塔和知乎直答的MCP服务，并提供通过公众号智能体调用以上MCP服务进行对话的实例。
 
+2025年9月15日：通义 MCP 服务上架。
 
 2025年9月13日：AI主机底座上线OpenAI API兼容接口，供第三方调用主机能力。
 
@@ -46,7 +46,7 @@ U3W-AI/
 
 ### 前置要求
 - JDK 17
-- Maven
+- Maven cube-admin:2.5.15, cube-engine:3.2.5
 - Node.js 16.x/18.x 和 npm 8.x+
 - MySQL 5.7+ 和 Redis 6.0+
 - Windows 10系统及以上（建议内存16GB）

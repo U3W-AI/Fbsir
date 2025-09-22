@@ -39,7 +39,7 @@
 - 启动服务：
   ```bash
       java -jar target/U3W.jar
-    ```
+  ```
 - 服务启动后，可通过 http://localhost:8083/swagger-ui/index.html 查看接口文档
 
 ### 3.后台项目启动
@@ -112,9 +112,110 @@ spring:
 ### 最终验证
 完成所有配置后，发布并咨询相关问题，发送以"1"开头的问题（确保意图准确识别）来测试整个系统是否正常工作。系统将返回相应的回复链接，确认部署完成。
 
-## 注意事项
+## 第五阶段：openAI集成与调用
+### openAI集成
+- 创建springboot项目,版本2.7.x以上
+- 支持模型
+  | 模型名称   | 模型引用名称        | 是否支持流式输出 |
+  | ---------- | :------------ | ---------------- |
+  | 百度AI     | baidu         | 否               |
+  | DeepSeek   | deepseek      | 否               |
+  | 豆包       | dou_bao       | **是**           |
+  | 腾讯元宝T1 | yuan_bao_T1   | **是**           |
+  | 腾讯元宝DS | yuan_bao_DS   | **是**           |
+  | 通义千问   | tong_yi       | **是**           |
+  | 知乎直答   | zhi_hu_zhi_da | 否               |
+  | 秘塔       | metaso        | **是**           |
+
+### openAI配置
+- 引入springAI依赖
+```xml
+   <dependency>
+       <groupId>org.springframework.ai</groupId>
+       <artifactId>spring-ai-openai-spring-boot-starter</artifactId>
+       <version>1.0.0-M6</version>
+   </dependency>
+```
+- application.yml配置
+```yaml
+spring:
+  ai:
+    openai:
+      # 配置你的AI服务基础地址（注意ip跟端口需要与你cube-admin中的配置一致）
+      base-url: http://localhost:8081
+      # 配置你的API密钥  示例 office01-ovZrQ673x1GGaP6cX5XUnfzu7TmE
+      api-key: [主机ID]-[UnionID]
+      # 聊天接口的默认参数配置
+      chat:
+        options:
+          # 指定要调用的模型ID（需与服务中支持的模型ID一致）
+          model: 模型引用名称 
+          # 其他可选参数（根据需要配置）
+          max-tokens: XXXX
+server:
+  port: 8080
+```
+### openAI代码调用示例
+- 代码示例
+
+  - AI配置
+    ```
+    @Configuration
+    public class AIConfig {
+        @Autowired
+        private OpenAiChatModel openAiChatModel;
+        @Bean
+        public ChatClient chatClient(ChatMemory chatMemory) {
+            return ChatClient
+                    .builder(openAiChatModel)
+                    .defaultSystem("你是一位名字为优立方的助手")
+                    .defaultAdvisors(new MessageChatMemoryAdvisor(chatMemory)) // 添加会话记忆存储通知器
+                    .build();
+        }
+        @Bean
+        public ChatMemory chatMemory() {
+            return new InMemoryChatMemory();
+        }
+    }
+    ```
+    
+  - 测试代码
+    ```
+    @RestController
+    public class AiController {
+        @Autowired
+        private ChatClient chatClient;
+        @GetMapping(value = "/chat/stream/{msg}", produces = "text/html;charset=utf-8")
+        public Flux<String> chat(@PathVariable("msg") String msg) {
+            // 包装为Prompt
+            return chatClient.prompt()
+                    .user(msg)
+                    .advisors(advisorSpec -> advisorSpec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, 1))
+                    .stream()
+                    .content()
+                    .map(contents -> {
+                        System.out.print(contents);
+                        return contents;
+                    });
+        }
+        @GetMapping(value = "/chat/{msg}")
+        public String chatStream(@PathVariable("msg") String msg) {
+            // 包装为Prompt
+            String content = chatClient.prompt(msg)
+                    .call()
+                    .content();
+            System.out.println(content);
+            return content;
+        }
+    }
+    ```
+  - 访问测试(注意ip端口保持与你配置的一致)
+    - 流式输出 http://localhost:8080/chat/stream/你好
+    - 非流式输出 http://localhost:8080/chat/你好
+  
+## 注意事项、
+
 - 主机ID必须唯一，避免与其他实例冲突
 - 内网穿透工具的选择应考虑稳定性和安全性
 - 定期检查服务状态和日志信息
 - 如遇问题，可查看控制台日志或联系技术支持
-   
