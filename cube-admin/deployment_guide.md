@@ -14,11 +14,11 @@
    ```
 2. 导入SQL文件：
    ```bash
-   mysql -u root -p ucube < ../../sql/ucube.sql
+   mysql -u root -p fbsir < ../../sql/fbsir.sql
    ```
 3. 添加主机ID到白名单表：
    ```bash
-   mysql -u root -p ucube
+   mysql -u root -p fbsir
    INSERT INTO sys_host_whitelist (host_id) VALUES ('office01');
    ```
 4. 进入项目根目录安装完整依赖
@@ -36,7 +36,7 @@
        datasource:
            druid:
                master:
-                   url: jdbc:mysql://[自己的数据库IP]:[端口]/ucube?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowMultiQueries=true
+                   url: jdbc:mysql://[自己的数据库IP]:[端口]/fbsir?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowMultiQueries=true
                    username: [数据库用户名]
                    password: [数据库密码]
    ```
